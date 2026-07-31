@@ -27,6 +27,7 @@ export type PackageData = {
   logo: string | null;
   poster: string | null;
   packageTitle: string;
+  packageType: "domestic" | "international";
   duration: string;
   highlights: string[];
   days: PackageDay[];
@@ -57,9 +58,12 @@ export type BookingData = {
   userId: string;
   clientName: string;
   clientPhone: string;
+  clientEmail: string;
   location: string;
+  packageType: "domestic" | "international";
   packageId: string | null;
   travelDate: string;
+  finalPaymentDate: string;
   adults: string;
   children: string;
   adultPrice: string;

@@ -93,6 +93,44 @@
   filter: brightness(1.05);
 }
 
+.typeTabsWrap {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.typeTabs {
+  display: flex;
+  gap: 6px;
+  background: var(--surface-2);
+  padding: 4px;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.typeTab {
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  background: transparent;
+  border: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.typeTab:hover {
+  color: var(--ink);
+}
+
+.typeTabActive {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.typeTabActive:hover {
+  color: var(--accent-ink);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

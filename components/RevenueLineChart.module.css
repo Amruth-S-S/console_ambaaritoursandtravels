@@ -1,0 +1,83 @@
+.wrap {
+  position: relative;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.tickLabel {
+  font-size: 10.5px;
+  fill: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.xLabel {
+  font-size: 10.5px;
+  fill: var(--ink-faint);
+}
+
+.line {
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.dot {
+  fill: var(--chart-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+  cursor: pointer;
+}
+
+.crosshair {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.endLabel {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip {
+  position: absolute;
+  transform: translate(-50%, -130%);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 7px 11px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+
+.tooltipValue {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tooltipLabel {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 1px;
+}
+
+.empty {
+  padding: 30px 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 13.5px;
+}

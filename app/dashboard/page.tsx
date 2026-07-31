@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, Booking, Package, User } from "@/lib/api";
 import BookingsBarChart, { BarDatum } from "@/components/BookingsBarChart";
+import PieChart, { PieDatum } from "@/components/PieChart";
+import RevenueLineChart, { LinePoint } from "@/components/RevenueLineChart";
 import Navbar from "@/components/Navbar";
 import dash from "./dashboard.module.css";
 import styles from "./overview.module.css";
@@ -59,6 +61,76 @@ export default function OverviewPage() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [bookings]);
 
+  const byType = useMemo(() => {
+    let domestic = 0;
+    let international = 0;
+    let domesticCount = 0;
+    let internationalCount = 0;
+    for (const b of bookings) {
+      const amount = parseFloat(b.amount) || 0;
+      if (b.packageType === "international") {
+        international += amount;
+        internationalCount += 1;
+      } else {
+        domestic += amount;
+        domesticCount += 1;
+      }
+    }
+    return { domestic, international, domesticCount, internationalCount };
+  }, [bookings]);
+
+  const revenuePieData: PieDatum[] = useMemo(
+    () => [
+      { id: "domestic", label: "Domestic", value: byType.domestic, color: "var(--chart-1)" },
+      { id: "international", label: "International", value: byType.international, color: "var(--chart-2)" },
+    ],
+    [byType]
+  );
+
+  // Fixed hue order (see globals.css --chart-1..8) assigned by rank, never
+  // cycled — beyond 8 users the tail folds into "Other" rather than
+  // generating a 9th hue (dataviz skill: series-count ladder).
+  const perUserPieData: PieDatum[] = useMemo(() => {
+    const colors = [
+      "var(--chart-1)",
+      "var(--chart-2)",
+      "var(--chart-3)",
+      "var(--chart-4)",
+      "var(--chart-5)",
+      "var(--chart-6)",
+      "var(--chart-7)",
+      "var(--chart-8)",
+    ];
+    const head = perUser.slice(0, 8).map((u, i) => ({ id: u.id, label: u.label, value: u.count, color: colors[i] }));
+    const tail = perUser.slice(8);
+    if (tail.length > 0) {
+      head.push({
+        id: "other",
+        label: "Other",
+        value: tail.reduce((s, u) => s + u.count, 0),
+        color: "var(--chart-other)",
+      });
+    }
+    return head;
+  }, [perUser]);
+
+  const revenueTrend: LinePoint[] = useMemo(() => {
+    const map = new Map<string, { label: string; total: number }>();
+    for (const b of bookings) {
+      const d = new Date(b.createdAt);
+      if (Number.isNaN(d.getTime())) continue;
+      const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+      const amount = parseFloat(b.amount) || 0;
+      const existing = map.get(sortKey);
+      if (existing) existing.total += amount;
+      else map.set(sortKey, { label, total: amount });
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, m]) => ({ x: m.label, y: m.total }));
+  }, [bookings]);
+
   const recentBookings = useMemo(() => bookings.slice(0, 8), [bookings]);
 
   return (
@@ -103,6 +175,9 @@ export default function OverviewPage() {
               <div className={styles.card}>
                 <div className={styles.k}>Total bookings</div>
                 <div className={styles.v}>{bookings.length}</div>
+                <div className={styles.sub}>
+                  {byType.domesticCount} domestic · {byType.internationalCount} international
+                </div>
               </div>
               <div className={styles.card}>
                 <div className={styles.k}>Revenue collected</div>
@@ -115,6 +190,21 @@ export default function OverviewPage() {
               <div className={styles.card}>
                 <div className={styles.k}>Packages</div>
                 <div className={styles.v}>{packages.length}</div>
+              </div>
+            </div>
+
+            <div className={styles.cards}>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic revenue
+                </div>
+                <div className={styles.v}>₹ {byType.domestic.toLocaleString("en-IN")}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International revenue
+                </div>
+                <div className={styles.v}>₹ {byType.international.toLocaleString("en-IN")}</div>
               </div>
             </div>
 
@@ -156,6 +246,35 @@ export default function OverviewPage() {
                 )}
               </section>
             </div>
+
+            <div className={styles.panelGrid}>
+              <section className={styles.panel}>
+                <h3>Revenue by type</h3>
+                {!loaded ? (
+                  <div className={styles.loading}>Loading…</div>
+                ) : (
+                  <PieChart data={revenuePieData} valueFormat={(v) => `₹${v.toLocaleString("en-IN")}`} />
+                )}
+              </section>
+
+              <section className={styles.panel}>
+                <h3>Bookings per user share</h3>
+                {!loaded ? (
+                  <div className={styles.loading}>Loading…</div>
+                ) : (
+                  <PieChart data={perUserPieData} />
+                )}
+              </section>
+            </div>
+
+            <section className={styles.panel}>
+              <h3>Revenue over time</h3>
+              {!loaded ? (
+                <div className={styles.loading}>Loading…</div>
+              ) : (
+                <RevenueLineChart data={revenueTrend} />
+              )}
+            </section>
 
             <section className={styles.panel}>
               <h3>Recent bookings</h3>

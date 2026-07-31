@@ -14,6 +14,19 @@
   --indigo: #6b7cff;
   --danger: #ff6b6b;
   --danger-soft: rgba(255, 107, 107, 0.12);
+  /* Categorical chart palette — fixed hue order, validated against this
+     app's dark surface (#171d2b) with the dataviz skill's six-check
+     validator (lightness band, chroma floor, CVD + normal-vision separation,
+     contrast). Assign in this order; never cycle or reorder per-chart. */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+  --chart-other: #52596b;
   --radius: 12px;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   --font-display: "Space Grotesk", system-ui, sans-serif;

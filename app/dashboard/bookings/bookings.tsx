@@ -43,9 +43,12 @@ type FormState = {
   userId: string;
   clientName: string;
   clientPhone: string;
+  clientEmail: string;
   location: string;
+  packageType: "domestic" | "international";
   packageId: string;
   travelDate: string;
+  finalPaymentDate: string;
   adults: string;
   children: string;
   adultPrice: string;
@@ -65,9 +68,12 @@ const emptyForm: FormState = {
   userId: "",
   clientName: "",
   clientPhone: "",
+  clientEmail: "",
   location: "",
+  packageType: "domestic",
   packageId: "",
   travelDate: "",
+  finalPaymentDate: "",
   adults: "1",
   children: "0",
   adultPrice: "",
@@ -89,6 +95,7 @@ export default function BookingsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [search, setSearch] = useState("");
+  const [typeTab, setTypeTab] = useState<"all" | "domestic" | "international">("all");
   const [loaded, setLoaded] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -136,15 +143,17 @@ export default function BookingsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return bookings;
-    return bookings.filter(
-      (b) =>
+    return bookings.filter((b) => {
+      if (typeTab !== "all" && b.packageType !== typeTab) return false;
+      if (!q) return true;
+      return (
         b.clientName.toLowerCase().includes(q) ||
         b.clientPhone.toLowerCase().includes(q) ||
         b.packageTitle.toLowerCase().includes(q) ||
         b.userName.toLowerCase().includes(q)
-    );
-  }, [bookings, search]);
+      );
+    });
+  }, [bookings, search, typeTab]);
 
   function nextInvoiceNumber(): string {
     const nums = bookings
@@ -153,6 +162,11 @@ export default function BookingsPage() {
     const next = nums.length ? Math.max(...nums) + 1 : 1;
     return String(next).padStart(4, "0");
   }
+
+  const matchingPackages = useMemo(
+    () => packages.filter((p) => p.packageType === form.packageType),
+    [packages, form.packageType]
+  );
 
   const totals = useMemo(
     () =>
@@ -188,9 +202,12 @@ export default function BookingsPage() {
       userId: b.userId,
       clientName: b.clientName,
       clientPhone: b.clientPhone,
+      clientEmail: b.clientEmail,
       location: b.location,
+      packageType: b.packageType,
       packageId: b.packageId || "",
       travelDate: b.travelDate,
+      finalPaymentDate: b.finalPaymentDate,
       adults: b.adults,
       children: b.children,
       adultPrice: b.adultPrice,
@@ -288,9 +305,12 @@ export default function BookingsPage() {
         userId: isAdmin ? form.userId : user?.id || "",
         clientName: form.clientName.trim(),
         clientPhone: form.clientPhone.trim(),
+        clientEmail: form.clientEmail.trim(),
         location: form.location.trim(),
+        packageType: form.packageType,
         packageId: form.packageId || null,
         travelDate: form.travelDate,
+        finalPaymentDate: form.finalPaymentDate,
         adults: form.adults.trim() || "1",
         children: form.children.trim() || "0",
         adultPrice: form.adultPrice.trim(),
@@ -370,11 +390,38 @@ export default function BookingsPage() {
             </div>
           </div>
 
+          <div className={styles.typeTabsWrap}>
+            <div className={styles.typeTabs}>
+              <button
+                className={`${styles.typeTab} ${typeTab === "all" ? styles.typeTabActive : ""}`}
+                onClick={() => setTypeTab("all")}
+              >
+                All
+              </button>
+              <button
+                className={`${styles.typeTab} ${typeTab === "domestic" ? styles.typeTabActive : ""}`}
+                onClick={() => setTypeTab("domestic")}
+              >
+                Domestic
+              </button>
+              <button
+                className={`${styles.typeTab} ${typeTab === "international" ? styles.typeTabActive : ""}`}
+                onClick={() => setTypeTab("international")}
+              >
+                International
+              </button>
+            </div>
+          </div>
+
           {!loaded ? (
             <div className={styles.empty}>Loading…</div>
           ) : filtered.length === 0 ? (
             <div className={styles.empty}>
-              {search ? "No bookings match your search." : "No bookings yet."}
+              {search
+                ? "No bookings match your search."
+                : typeTab !== "all"
+                ? "No bookings in this category yet."
+                : "No bookings yet."}
             </div>
           ) : (
             <table className={styles.table}>
@@ -484,17 +531,43 @@ export default function BookingsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="b-location">Location</label>
+            <label htmlFor="b-email">Client email</label>
             <input
-              id="b-location"
-              value={form.location}
-              placeholder="e.g. Bengaluru"
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              id="b-email"
+              type="email"
+              value={form.clientEmail}
+              placeholder="client@example.com"
+              onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
             />
           </div>
         </div>
+        <div className={styles.field}>
+          <label htmlFor="b-location">Location</label>
+          <input
+            id="b-location"
+            value={form.location}
+            placeholder="e.g. Bengaluru"
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+          />
+        </div>
 
         <div className={styles.sectionLabel}>Package details</div>
+        <div className={styles.field}>
+          <label htmlFor="b-package-type">Package type</label>
+          <select
+            id="b-package-type"
+            value={form.packageType}
+            onChange={(e) => {
+              const packageType = e.target.value as "domestic" | "international";
+              const selected = packages.find((p) => p.id === form.packageId);
+              const stillValid = selected?.packageType === packageType;
+              setForm({ ...form, packageType, packageId: stillValid ? form.packageId : "" });
+            }}
+          >
+            <option value="domestic">Domestic</option>
+            <option value="international">International</option>
+          </select>
+        </div>
         <div className={styles.field}>
           <label htmlFor="b-package">Package</label>
           <select
@@ -503,9 +576,9 @@ export default function BookingsPage() {
             onChange={(e) => setForm({ ...form, packageId: e.target.value })}
           >
             <option value="">
-              {packages.length === 0 ? "No packages available" : "Select a package…"}
+              {matchingPackages.length === 0 ? "No packages available" : "Select a package…"}
             </option>
-            {packages.map((p) => (
+            {matchingPackages.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.packageTitle || "Untitled package"}
               </option>
@@ -522,6 +595,17 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, travelDate: e.target.value })}
             />
           </div>
+          <div className={styles.field}>
+            <label htmlFor="b-final-payment-date">Final payment date</label>
+            <input
+              id="b-final-payment-date"
+              type="date"
+              value={form.finalPaymentDate}
+              onChange={(e) => setForm({ ...form, finalPaymentDate: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className={styles.row}>
           <div className={styles.field}>
             <label htmlFor="b-adults">Adults</label>
             <input

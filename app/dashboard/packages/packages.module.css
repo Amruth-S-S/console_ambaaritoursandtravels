@@ -31,7 +31,42 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  margin-bottom: 16px;
+}
+
+.typeTabs {
+  display: flex;
+  gap: 6px;
+  background: white;
+  padding: 4px;
+  border-radius: 12px;
+  width: fit-content;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   margin-bottom: 22px;
+}
+
+.typeTab {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.typeTab:hover {
+  color: #1e293b;
+}
+
+.typeTabActive {
+  color: white;
+  background: #2563eb;
+}
+
+.typeTabActive:hover {
+  color: white;
 }
 
 .count {
@@ -303,6 +338,7 @@
 }
 
 .formGroup input,
+.formGroup select,
 .formGroup textarea {
   width: 100%;
   padding: 10px 14px;
@@ -315,7 +351,12 @@
   color: #1e293b;
 }
 
+.formGroup select {
+  cursor: pointer;
+}
+
 .formGroup input:focus,
+.formGroup select:focus,
 .formGroup textarea:focus {
   border-color: #2563eb;
   outline: none;
@@ -528,6 +569,66 @@
   color: #94a3b8;
   text-align: center;
   padding: 50px 0;
+}
+
+.quickPreviewOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9998;
+  padding: 30px;
+}
+
+.quickPreviewModal {
+  background: #f0f4f8;
+  border-radius: 16px;
+  padding: 20px;
+  width: 100%;
+  max-width: 1150px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.quickPreviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.quickPreviewHeader h2 {
+  font-size: 20px;
+  color: #0f2b45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickPreviewHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.quickPreviewModal .previewBox {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Rendered off-screen purely so downloadItineraryPdf (html2canvas) has a
+   real, painted DOM node to capture for a card's Download button — never
+   shown to the user. */
+.offscreenRender {
+  position: fixed;
+  top: -99999px;
+  left: -99999px;
 }
 
 .loadingOverlay {

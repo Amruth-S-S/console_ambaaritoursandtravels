@@ -9,6 +9,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -63,14 +64,25 @@ export default function LoginPage() {
 
           <div className={styles.field}>
             <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              placeholder="••••••••"
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onSubmit()}
-            />
+            <div className={styles.passwordWrap}>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                placeholder="••••••••"
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onSubmit()}
+              />
+              <button
+                type="button"
+                className={styles.passwordToggle}
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                <i className={`fas ${showPassword ? "fa-eye-slash" : "fa-eye"}`} />
+              </button>
+            </div>
           </div>
 
           {error && <div className={styles.error}>{error}</div>}

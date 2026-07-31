@@ -18,6 +18,7 @@ type FormState = {
   logo: string | null;
   poster: string | null;
   packageTitle: string;
+  packageType: "domestic" | "international";
   duration: string;
   highlightsText: string;
   days: DayState[];
@@ -38,6 +39,7 @@ const emptyForm: FormState = {
   logo: null,
   poster: null,
   packageTitle: "",
+  packageType: "domestic",
   duration: "",
   highlightsText: "",
   days: [],
@@ -59,6 +61,7 @@ function toPackageData(f: FormState): PackageData {
     logo: f.logo,
     poster: f.poster,
     packageTitle: f.packageTitle,
+    packageType: f.packageType,
     duration: f.duration,
     // highlights/inclusions/exclusions are edited as rich text (RichTextField)
     // — each line is an HTML fragment (possibly containing <b>/highlight
@@ -84,6 +87,7 @@ function fromPackageData(p: PackageData): FormState {
     logo: p.logo,
     poster: p.poster,
     packageTitle: p.packageTitle,
+    packageType: p.packageType,
     duration: p.duration,
     highlightsText: joinHtmlLines(p.highlights),
     days: p.days.map((d) => ({ title: d.title, desc: d.desc, images: d.images })),
@@ -137,6 +141,7 @@ const EXAMPLE_FORM_RAW: FormState = {
   logo: null,
   poster: null,
   packageTitle: "Divine Triveni Yatra: Nepal - Ayodhya - Varanasi",
+  packageType: "international",
   duration: "10N/11D",
   highlightsText:
     "Sacred Darshan at Muktinath Temple\nDivine Blessings at Pashupatinath Temple\nScenic Beauty of Pokhara\nVisit to Ram Janmabhoomi\nMesmerizing Ganga Aarti at Dashashwamedh Ghat",
@@ -262,11 +267,17 @@ export default function PackagesPage() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [savedPackages, setSavedPackages] = useState<Package[]>([]);
   const [search, setSearch] = useState("");
+  const [typeTab, setTypeTab] = useState<"all" | "domestic" | "international">("all");
   const [busy, setBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // Quick preview/download straight from a card, without opening the builder.
+  const [quickPreview, setQuickPreview] = useState<Package | null>(null);
+  const [downloadTarget, setDownloadTarget] = useState<Package | null>(null);
+  const downloadRef = useRef<HTMLDivElement>(null);
 
   function notify(type: "ok" | "err", text: string) {
     window.clearTimeout(toastTimer.current);
@@ -390,6 +401,38 @@ export default function PackagesPage() {
     setPreviewHtml(buildPreviewHtml(p, BANK_QR_BASE64));
   }
 
+  function openQuickPreview(p: Package) {
+    setQuickPreview(p);
+  }
+
+  function closeQuickPreview() {
+    setQuickPreview(null);
+  }
+
+  useEffect(() => {
+    if (!downloadTarget) return;
+    (async () => {
+      try {
+        // Give the hidden render below a tick to paint before we capture it.
+        await new Promise((r) => setTimeout(r, 50));
+        if (!downloadRef.current) return;
+        const filename = `${downloadTarget.packageTitle.trim() || "itinerary"}.pdf`;
+        await downloadItineraryPdf(downloadRef.current, filename);
+      } catch (e) {
+        notify("err", e instanceof Error ? e.message : "Failed to generate PDF");
+      } finally {
+        setPdfBusy(false);
+        setDownloadTarget(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloadTarget]);
+
+  function downloadPackagePdf(p: Package) {
+    setPdfBusy(true);
+    setDownloadTarget(p);
+  }
+
   function deletePackage(id: string, title: string) {
     window.clearTimeout(toastTimer.current);
     setToast({
@@ -412,14 +455,16 @@ export default function PackagesPage() {
 
   const filteredPackages = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return savedPackages;
-    return savedPackages.filter(
-      (p) =>
+    return savedPackages.filter((p) => {
+      if (typeTab !== "all" && p.packageType !== typeTab) return false;
+      if (!q) return true;
+      return (
         p.packageTitle.toLowerCase().includes(q) ||
         p.companyName.toLowerCase().includes(q) ||
         p.duration.toLowerCase().includes(q)
-    );
-  }, [savedPackages, search]);
+      );
+    });
+  }, [savedPackages, search, typeTab]);
 
   return (
     <>
@@ -429,6 +474,40 @@ export default function PackagesPage() {
         <div className={styles.loadingOverlay}>
           <i className="fas fa-spinner" />
           <span>Generating PDF, please wait...</span>
+        </div>
+      )}
+
+      {quickPreview && (
+        <div className={styles.quickPreviewOverlay} onClick={closeQuickPreview}>
+          <div className={styles.quickPreviewModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.quickPreviewHeader}>
+              <h2>{quickPreview.packageTitle || "Untitled package"}</h2>
+              <div className={styles.quickPreviewHeaderActions}>
+                <button className={styles.btn} onClick={() => downloadPackagePdf(quickPreview)} disabled={pdfBusy}>
+                  <i className="fas fa-download" /> Download PDF
+                </button>
+                <button className={styles.iconBtn} onClick={closeQuickPreview} title="Close">
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+            </div>
+            <div className={styles.previewBox}>
+              <div
+                className="itinerary-content"
+                dangerouslySetInnerHTML={{ __html: buildPreviewHtml(quickPreview, BANK_QR_BASE64) }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {downloadTarget && (
+        <div className={styles.offscreenRender}>
+          <div
+            ref={downloadRef}
+            className="itinerary-content"
+            dangerouslySetInnerHTML={{ __html: buildPreviewHtml(downloadTarget, BANK_QR_BASE64) }}
+          />
         </div>
       )}
 
@@ -452,12 +531,35 @@ export default function PackagesPage() {
               </div>
             </div>
 
+            <div className={styles.typeTabs}>
+              <button
+                className={`${styles.typeTab} ${typeTab === "all" ? styles.typeTabActive : ""}`}
+                onClick={() => setTypeTab("all")}
+              >
+                All
+              </button>
+              <button
+                className={`${styles.typeTab} ${typeTab === "domestic" ? styles.typeTabActive : ""}`}
+                onClick={() => setTypeTab("domestic")}
+              >
+                Domestic
+              </button>
+              <button
+                className={`${styles.typeTab} ${typeTab === "international" ? styles.typeTabActive : ""}`}
+                onClick={() => setTypeTab("international")}
+              >
+                International
+              </button>
+            </div>
+
             {savedPackages.length === 0 ? (
               <div className={styles.emptyState}>
                 No packages yet — click <strong>Create Package</strong> to build your first one.
               </div>
             ) : filteredPackages.length === 0 ? (
-              <div className={styles.emptyState}>No packages match your search.</div>
+              <div className={styles.emptyState}>
+                {search.trim() ? "No packages match your search." : "No packages in this category yet."}
+              </div>
             ) : (
               <div className={styles.grid}>
                 {filteredPackages.map((p) => {
@@ -481,8 +583,19 @@ export default function PackagesPage() {
                           {p.adultPrice && <span>₹ {p.adultPrice}</span>}
                         </div>
                         <div className={styles.cardActions}>
+                          <button className={styles.iconBtn} onClick={() => openQuickPreview(p)} title="Preview">
+                            <i className="fas fa-eye" />
+                          </button>
                           <button className={styles.iconBtn} onClick={() => openEdit(p)} title="Edit">
                             <i className="fas fa-pencil-alt" />
+                          </button>
+                          <button
+                            className={styles.iconBtn}
+                            onClick={() => downloadPackagePdf(p)}
+                            title="Download PDF"
+                            disabled={pdfBusy}
+                          >
+                            <i className="fas fa-download" />
                           </button>
                           <button
                             className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
@@ -535,6 +648,17 @@ export default function PackagesPage() {
                 <i className="fas fa-image" /> Poster Image (optional)
               </label>
               <input type="file" accept="image/*" onChange={handlePosterChange} />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Package Type</label>
+              <select
+                value={form.packageType}
+                onChange={(e) => updateField("packageType", e.target.value as FormState["packageType"])}
+              >
+                <option value="domestic">Domestic</option>
+                <option value="international">International</option>
+              </select>
             </div>
 
             <div className={styles.formRow}>
