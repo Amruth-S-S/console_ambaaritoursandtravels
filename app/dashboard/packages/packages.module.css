@@ -1,0 +1,568 @@
+.page {
+  background: #f0f4f8;
+  border-radius: 16px;
+  padding: 24px;
+  color: #1e293b;
+  /* This page renders straight after <Navbar/> with no dash.content wrapper,
+     so it needs to be its own scroll region (see dashboard.module.css
+     .content) — otherwise the sidebar/navbar scroll away with the page. */
+  flex: 1;
+  /* Without this, .page (a flex item of .main, a column flex container)
+     defaults to min-height:auto and grows to fit its content's full natural
+     height instead of being clipped to the space flex:1 actually allocates —
+     which left .builderWrap's height:100% resolving against an ever-growing
+     .page, so formPanel/previewPanel below never had any real overflow of
+     their own to scroll (same "flex item won't shrink below content" trap
+     already worked around on the row axis in .container, one level up). */
+  min-height: 0;
+  overflow-y: auto;
+  /* Forces its own GPU-composited layer. Without this, this scroll container
+     nested inside .shell/.main's own overflow:hidden — combined with the
+     position:sticky header inside it — hits a Chromium compositor bug where
+     a stale rasterized tile from scrolled-past content briefly paints over
+     the (unrelated, non-scrolling) navbar above during scroll. */
+  transform: translateZ(0);
+}
+
+/* ---------- List view (landing page: card grid of saved packages) ---------- */
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.count {
+  font-size: 13px;
+  color: #64748b;
+  background: white;
+  padding: 5px 12px;
+  border-radius: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.listHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search i {
+  position: absolute;
+  left: 13px;
+  color: #94a3b8;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.search input {
+  width: 300px;
+  background: white;
+  border: 1px solid #d1d9e6;
+  border-radius: 10px;
+  padding: 9px 12px 9px 34px;
+  font-size: 13.5px;
+  color: #1e293b;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.search input:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.emptyState {
+  background: white;
+  border-radius: 16px;
+  padding: 60px 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.grid {
+  display: grid;
+  /* fixed max (not 1fr) so a lone card doesn't stretch to fill the row —
+     leftover row space is just left empty instead of blowing the card up */
+  grid-template-columns: repeat(auto-fill, minmax(190px, 210px));
+  gap: 16px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.cardImage {
+  background: #e2e8f0;
+}
+
+.cardImage img {
+  /* No fixed height/object-fit here: a fixed box was either cropping the
+     photo (cover) or leaving empty letterbox bars beside it (contain) when
+     the box's ratio didn't match the upload's. Filling the width and letting
+     height follow the image's own ratio shows the whole photo edge-to-edge
+     with no gaps, whatever its shape — the card is just as tall as it needs
+     to be. */
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.cardImagePlaceholder {
+  width: 100%;
+  height: 140px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #1e3a5f, #2a4f7a);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 24px;
+}
+
+.cardBody {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.cardTitle {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #0f2b45;
+  line-height: 1.35;
+}
+
+.cardMeta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.iconBtn {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.iconBtn:hover {
+  color: #2563eb;
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.iconBtnDanger:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: #fee2e2;
+}
+
+/* ---------- Builder view ---------- */
+
+/* Builder view fills .page's available height exactly, so the two columns
+   below can each scroll independently instead of sharing one page-level
+   scroll (which meant scrolling past whichever column was shorter left a
+   blank gap while the taller one kept going). */
+.builderWrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.builderBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.editingBadge {
+  font-size: 12.5px;
+  color: #2563eb;
+  font-weight: 600;
+  background: rgba(37, 99, 235, 0.1);
+  padding: 6px 12px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  /* nowrap (not wrap): the two columns are always meant to sit side by side
+     at this width — narrow screens instead switch to a stacked column via
+     the @media rule below. This also matters for height: with flex-wrap:wrap,
+     Chromium won't stretch a single-line flex item to the container's full
+     cross-size (align-items:stretch is effectively ignored), which is what
+     let formPanel/previewPanel grow to their content's full height instead
+     of being bounded to this row's height — breaking their own
+     overflow-y:auto below. */
+  flex-wrap: nowrap;
+  gap: 30px;
+  flex: 1;
+  /* Lets the row shrink below its content's natural height so the two
+     columns' own overflow-y:auto (below) can actually take effect instead
+     of the row just growing to fit everything. */
+  min-height: 0;
+}
+
+.formPanel {
+  flex: 1 1 45%;
+  min-width: 350px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  /* header + body are separate boxes (see below) instead of one padded
+     panel with a negative-margin header bleeding out of it — that trick
+     caused a visual ghosting glitch where scrolled-past content briefly
+     painted above the pinned header */
+  display: flex;
+  flex-direction: column;
+  /* Each column scrolls independently within the fixed-height .builderWrap,
+     instead of both columns sharing one page-level scroll (which meant
+     scrolling past whichever column was shorter left a blank gap below it
+     while the taller column kept scrolling). */
+  overflow-y: auto;
+  min-height: 0;
+  transform: translateZ(0);
+}
+
+.formPanelHeader {
+  font-size: 24px;
+  color: #0f2b45;
+  border-bottom: 2px solid #e9edf2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  /* Sticks relative to .formPanel's own scrollport now (see overflow-y:auto
+     above) — no more .page-padding gap to compensate for, so top:0 sits it
+     flush right away. */
+  top: 0;
+  z-index: 5;
+  background: white;
+  padding: 28px 28px 14px;
+  border-radius: 16px 16px 0 0;
+  flex-shrink: 0;
+  /* Solid white buffer strip just past the header's own box, in case of a
+     sub-pixel rendering seam at its bottom edge letting a sliver of the
+     next scrolled-past field peek through */
+  box-shadow: 0 6px 0 -2px white;
+  /* Force this onto its own compositor layer so scrolled-past content behind
+     it can never paint through at the seam during scroll repaint */
+  isolation: isolate;
+}
+
+.formPanelBody {
+  padding: 22px 28px 28px;
+}
+
+.formGroup {
+  margin-bottom: 18px;
+}
+
+.formGroup label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.formGroup input,
+.formGroup textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d9e6;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: 0.2s;
+  background: #fafcff;
+  font-family: inherit;
+  color: #1e293b;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.formGroup textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.formRow {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.formRow .formGroup {
+  flex: 1;
+  min-width: 140px;
+}
+
+.fileUpload {
+  border: 1px dashed #94a3b8;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.fileUpload input {
+  padding: 6px 0;
+  background: transparent;
+  border: none;
+}
+
+.btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover {
+  background: #1d4ed8;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnDanger {
+  background: #ef4444;
+}
+
+.btnDanger:hover {
+  background: #dc2626;
+}
+
+.btnSuccess {
+  background: #22c55e;
+}
+
+.btnSuccess:hover {
+  background: #16a34a;
+}
+
+.btnOutline {
+  background: transparent;
+  color: #2563eb;
+  border: 1px solid #2563eb;
+}
+
+.btnOutline:hover {
+  background: #2563eb;
+  color: white;
+}
+
+.btnSm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.dayBlock {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.dayBlock .removeDay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.dayImageThumbs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.dayImageThumbs img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.sectionTitle {
+  font-weight: 600;
+  font-size: 16px;
+  margin: 18px 0 12px 0;
+  color: #0f2b45;
+}
+
+.previewPanel {
+  flex: 1 1 50%;
+  /* min-width: 0 (not a fixed floor) lets this column shrink to whatever
+     space is actually available — the fixed 1050px-wide itinerary preview
+     inside otherwise forces this flex item wider than its column, which
+     blows out the whole page into horizontal scroll. See .previewBox. */
+  min-width: 0;
+  /* Independent scroll, matching .formPanel — see .container/.formPanel. */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+  transform: translateZ(0);
+}
+
+.previewPanelHeader {
+  /* Sticky like .formPanelHeader, so "Live Preview" + Refresh stay visible
+     while scrolling this column too. previewPanel has no card background of
+     its own (unlike formPanel), so this needs an opaque background matching
+     .page's own bg to mask scrolled-past content behind it. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #f0f4f8;
+  flex-shrink: 0;
+  isolation: isolate;
+}
+
+.previewPanel h2 {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #0f2b45;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.previewActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.previewBox {
+  background: white;
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  min-height: 600px;
+  /* the itinerary preview is a fixed 1050px wide (see itinerary-preview.css —
+     needed so html2canvas captures a consistent size for the PDF); scroll it
+     inside this box instead of letting it stretch the page layout */
+  overflow-x: auto;
+  /* Firefox: keep the scrollbar always visible rather than the default
+     auto-hide-until-hover behavior (Windows overlay scrollbars do the same,
+     which made this box look non-scrollable) */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.previewBox::-webkit-scrollbar {
+  height: 11px;
+}
+
+.previewBox::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.previewBox::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+  border: 2px solid #f1f5f9;
+}
+
+.previewBox::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.previewEmpty {
+  color: #94a3b8;
+  text-align: center;
+  padding: 50px 0;
+}
+
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  color: white;
+  flex-direction: column;
+  font-size: 20px;
+}
+
+.loadingOverlay i {
+  font-size: 48px;
+  margin-bottom: 12px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 800px) {
+  .container {
+    flex-direction: column;
+  }
+
+  .formPanel,
+  .previewPanel {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}

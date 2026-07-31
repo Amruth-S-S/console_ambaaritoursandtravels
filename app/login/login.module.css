@@ -1,0 +1,222 @@
+.wrap {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+}
+
+.brand {
+  background: linear-gradient(160deg, #12182a 0%, #0c1019 100%);
+  border-right: 1px solid var(--border);
+  padding: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+  top: -120px;
+  right: -120px;
+  pointer-events: none;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
+.logo {
+  height: 44px;
+  width: auto;
+  display: block;
+}
+
+.pitch {
+  z-index: 1;
+}
+
+.pitch h1 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  max-width: 15ch;
+}
+
+.pitch h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.pitch p {
+  color: var(--ink-dim);
+  margin-top: 18px;
+  max-width: 40ch;
+  line-height: 1.6;
+}
+
+.foot {
+  color: var(--ink-faint);
+  font-size: 13px;
+  z-index: 1;
+}
+
+.panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.card h2 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.card .sub {
+  color: var(--ink-dim);
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.field {
+  margin-top: 22px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+}
+
+.field input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 13px 15px;
+  color: var(--ink);
+  font-size: 15px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.error {
+  background: var(--danger-soft);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #ffb3b3;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  margin-top: 20px;
+}
+
+.submit {
+  width: 100%;
+  margin-top: 26px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: var(--radius);
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 0.1s, filter 0.15s;
+}
+
+.submit:hover {
+  filter: brightness(1.05);
+}
+
+.submit:active {
+  transform: translateY(1px);
+}
+
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 860px) {
+  .wrap {
+    grid-template-columns: 1fr;
+  }
+
+  /* A compact branded header instead of hiding the brand panel entirely —
+     just the logo + a short headline, so the form is reachable without much
+     scrolling but the page still opens on-brand. */
+  .brand {
+    padding: 28px 24px 24px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .glow {
+    width: 260px;
+    height: 260px;
+    top: -90px;
+    right: -90px;
+  }
+
+  .pitch {
+    margin-top: 18px;
+  }
+
+  .pitch h1 {
+    font-size: 22px;
+    max-width: none;
+  }
+
+  .pitch p {
+    display: none;
+  }
+
+  .foot {
+    display: none;
+  }
+
+  .panel {
+    /* flex-start (not center): centering vertically within the leftover
+       space below a min-height:100vh wrap left a large empty gap floating
+       between the header and the form on tall phone screens — the form
+       should sit right under the header instead. */
+    align-items: flex-start;
+    padding: 32px 20px 40px;
+  }
+}
+
+@media (max-width: 420px) {
+  .logo {
+    height: 36px;
+  }
+
+  .pitch h1 {
+    font-size: 19px;
+  }
+
+  .card h2 {
+    font-size: 22px;
+  }
+}

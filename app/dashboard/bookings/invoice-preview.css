@@ -1,0 +1,281 @@
+.invoice-doc {
+  width: 800px;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13.5px;
+}
+
+/* ---------- Header ---------- */
+
+.invoice-header {
+  background: #10162a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 32px;
+}
+
+.invoice-logo {
+  height: 52px;
+  width: auto;
+  display: block;
+}
+
+.invoice-header-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.invoice-badge {
+  display: inline-block;
+  background: #f2c14e;
+  color: #10162a;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 16px;
+  border-radius: 4px;
+}
+
+.invoice-contact {
+  color: #f2c14e;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.invoice-address {
+  color: #b9c0d4;
+  font-size: 10.5px;
+  line-height: 1.5;
+  margin-top: 4px;
+  max-width: 260px;
+}
+
+/* ---------- Meta row (invoice no / date / travel date) ---------- */
+
+.invoice-meta-row {
+  display: flex;
+  border-bottom: 3px solid #f2c14e;
+  padding: 14px 32px;
+}
+
+.invoice-meta-row > div {
+  flex: 1;
+}
+
+.invoice-meta-row span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 3px;
+}
+
+.invoice-meta-row b {
+  font-size: 14px;
+  color: #10162a;
+}
+
+/* ---------- Section titles ---------- */
+
+.invoice-block-title {
+  background: #10162a;
+  color: #f2c14e;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 32px;
+  margin-top: 4px;
+}
+
+/* ---------- Client details grid ---------- */
+
+.invoice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px 20px;
+  padding: 16px 32px;
+}
+
+.invoice-grid > div span {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 3px;
+}
+
+.invoice-grid > div {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ---------- Tables (package + payment history) ---------- */
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+.invoice-table th {
+  text-align: left;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 9px 32px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.invoice-table td {
+  padding: 10px 32px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.invoice-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invoice-table .muted {
+  color: #94a3b8;
+  text-align: center;
+}
+
+.pkg-name {
+  font-weight: 700;
+  color: #10162a;
+  margin-bottom: 3px;
+}
+
+.pkg-sub {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.total-price {
+  font-weight: 800;
+  color: #10162a;
+  font-size: 14px;
+}
+
+/* ---------- Summary rows (advance paid / balance due) ---------- */
+
+.invoice-summary-rows {
+  padding: 14px 32px 4px;
+}
+
+.advance-row,
+.balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 14px;
+}
+
+.advance-row {
+  color: #15803d;
+  font-weight: 600;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.balance-row {
+  background: #10162a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.balance-row b {
+  color: #f2c14e;
+}
+
+/* ---------- Footer (bank details + QR + signature) ---------- */
+
+.invoice-footer-block {
+  display: flex;
+  gap: 24px;
+  padding: 20px 32px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 10px;
+}
+
+.invoice-footer-col {
+  flex: 1;
+}
+
+.bank-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  font-size: 12px;
+}
+
+.bank-grid span {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.invoice-qr-col {
+  flex: 0 0 150px;
+  text-align: center;
+}
+
+.invoice-qr {
+  width: 110px;
+  height: 110px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.invoice-qr-caption {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.invoice-sig {
+  margin-top: 18px;
+  text-align: center;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}
+
+.sig-name {
+  font-weight: 700;
+  font-size: 12px;
+  color: #10162a;
+}
+
+.sig-title {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* ---------- Footer thank-you bar ---------- */
+
+.invoice-thankyou {
+  background: #10162a;
+  color: #f2c14e;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 14px 32px;
+}

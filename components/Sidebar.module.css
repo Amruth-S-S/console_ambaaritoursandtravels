@@ -1,0 +1,158 @@
+.sidebar {
+  width: 250px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 16px;
+  flex-shrink: 0;
+  transition: width 0.18s ease, padding 0.18s ease;
+}
+
+.sidebar.collapsed {
+  width: 76px;
+  padding: 22px 10px;
+}
+
+.markRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 22px;
+}
+
+.sidebar.collapsed .markRow {
+  justify-content: center;
+}
+
+.logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+
+.collapseBtn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink-dim);
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.collapseBtn:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.collapseBtn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.chevronFlipped {
+  display: inline-flex;
+  transform: rotate(180deg);
+}
+
+.group {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 16px 10px 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  color: var(--ink-dim);
+  font-size: 14.5px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+
+.item:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.badge {
+  margin-top: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.badge strong {
+  color: var(--ink);
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+/* ---------- Collapsed (manual toggle, any screen width) ---------- */
+
+.sidebar.collapsed .group,
+.sidebar.collapsed .item span,
+.sidebar.collapsed .badge {
+  display: none;
+}
+
+.sidebar.collapsed .item {
+  justify-content: center;
+}
+
+/* ---------- Narrow screens: same compact look, forced regardless of the
+   manual toggle — there's no room for the expanded layout either way. ---------- */
+
+@media (max-width: 720px) {
+  .sidebar {
+    width: 68px;
+    padding: 22px 10px;
+  }
+  .logo {
+    display: none;
+  }
+  .markRow {
+    justify-content: center;
+  }
+  .group,
+  .item span,
+  .badge {
+    display: none;
+  }
+  .item {
+    justify-content: center;
+  }
+}

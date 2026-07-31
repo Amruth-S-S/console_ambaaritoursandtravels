@@ -1,0 +1,51 @@
+.toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.toolbarBtn {
+  background: #f8fafc;
+  border: 1px solid #d1d9e6;
+  color: #1e293b;
+  width: 30px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.toolbarBtn:hover {
+  background: #e9edf2;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.editable {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d9e6;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #fafcff;
+  font-family: inherit;
+  color: #1e293b;
+  overflow-y: auto;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editable:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.editable:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}

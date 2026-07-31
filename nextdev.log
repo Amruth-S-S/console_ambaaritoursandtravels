@@ -1,0 +1,32 @@
+
+> auth-dashboard-frontend@1.0.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+[Error: EPERM: operation not permitted, open 'D:\Next js\console-app\project\frontend\.next\trace'] {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'open',
+  path: 'D:\\Next js\\console-app\\project\\frontend\\.next\\trace'
+}
+ ✓ Ready in 5.5s
+ ○ Compiling / ...
+ ✓ Compiled / in 6.5s (467 modules)
+ GET / 200 in 6881ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1499ms (469 modules)
+ GET /login 200 in 2183ms
+ GET /login 200 in 244ms
+ GET /login 200 in 100ms
+ GET /login 200 in 87ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 12.5s (563 modules)
+ GET /login 200 in 572ms
+ ○ Compiling /dashboard/users ...
+ ✓ Compiled /dashboard/users in 598ms (545 modules)
+ GET /login 200 in 446ms
+[?25h

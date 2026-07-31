@@ -1,0 +1,72 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* Reserves room for the first row's hover tooltip, which floats above its
+     own track — without this the tooltip would overlap the panel title. */
+  margin-top: 40px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 120px 1fr 34px;
+  align-items: center;
+  gap: 12px;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  position: relative;
+  height: 22px;
+  background: var(--surface-2);
+  /* Square at the left (the baseline bars grow from), rounded at the right
+     (the data-end) — never rounded at the baseline. */
+  border-radius: 0 6px 6px 0;
+  overflow: visible;
+}
+
+.fill {
+  height: 100%;
+  min-width: 22px;
+  background: var(--accent);
+  border-radius: 0 6px 6px 0;
+  transition: width 0.3s ease;
+}
+
+.value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tooltip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+}
+
+.empty {
+  padding: 30px 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 13.5px;
+}
