@@ -1,4 +1,12 @@
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// NEXT_PUBLIC_API_URL overrides this if it's ever set (e.g. in the Vercel
+// dashboard), but that's no longer required — production builds (NODE_ENV
+// set automatically by `next build`) default to the deployed backend, local
+// dev defaults to localhost, with no env var configuration needed either way.
+const API =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://console-backend-two.vercel.app"
+    : "http://localhost:8000");
 
 export type User = {
   id: string;
