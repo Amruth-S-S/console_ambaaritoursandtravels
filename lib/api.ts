@@ -141,11 +141,15 @@ export const api = {
   deletePackage: (id: string) =>
     request<void>(`/packages/${id}`, { method: "DELETE" }),
 
+  // Hits this Next.js app's own /api route (Node runtime, nodemailer) rather
+  // than the Python backend, which 502'd in production (worked on localhost)
+  // — outbound SMTP from serverless functions is unreliable on Vercel.
   sendBookingInvoiceEmail: async (bookingId: string, pdf: Blob, filename = "invoice.pdf") => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     const form = new FormData();
+    form.append("bookingId", bookingId);
     form.append("invoice", pdf, filename);
-    const res = await fetch(`${API}/bookings/${bookingId}/send-invoice-email`, {
+    const res = await fetch(`/api/send-invoice-email`, {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,
