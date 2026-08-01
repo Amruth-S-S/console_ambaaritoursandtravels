@@ -97,6 +97,8 @@ export default function BookingsPage() {
   const [search, setSearch] = useState("");
   const [typeTab, setTypeTab] = useState<"all" | "domestic" | "international">("all");
   const [loaded, setLoaded] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [mode, setMode] = useState<"create" | "edit">("create");
@@ -154,6 +156,19 @@ export default function BookingsPage() {
       );
     });
   }, [bookings, search, typeTab]);
+
+  // Search/tab changes can shrink the result set out from under whatever
+  // page the user was on — snap back to page 1 rather than showing a blank page.
+  useEffect(() => {
+    setPage(1);
+  }, [search, typeTab]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage]
+  );
 
   function nextInvoiceNumber(): string {
     const nums = bookings
@@ -424,20 +439,30 @@ export default function BookingsPage() {
                 : "No bookings yet."}
             </div>
           ) : (
+            <div className={styles.tableScroll}>
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th>Invoice No</th>
+                  <th>Date</th>
                   <th>Client</th>
                   <th>Phone</th>
                   <th>Package</th>
+                  <th>Package Amount</th>
+                  <th>Advance Paid</th>
+                  <th>Balance Due</th>
                   <th>Amount</th>
                   {isAdmin && <th>Booked By</th>}
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((b) => (
+                {paged.map((b) => {
+                  const t = computeInvoiceTotals(b);
+                  return (
                   <tr key={b.id}>
+                    <td style={{ color: "var(--ink-dim)" }}>{b.invoiceNumber || "—"}</td>
+                    <td style={{ color: "var(--ink-dim)" }}>{b.invoiceDate || "—"}</td>
                     <td>
                       <div className={styles.bName}>
                         <span className={styles.bAvatar}>
@@ -448,6 +473,9 @@ export default function BookingsPage() {
                     </td>
                     <td style={{ color: "var(--ink-dim)" }}>{b.clientPhone}</td>
                     <td style={{ color: "var(--ink-dim)" }}>{b.packageTitle || "—"}</td>
+                    <td className={styles.amount}>₹ {t.packagePrice.toLocaleString("en-IN")}</td>
+                    <td className={styles.amount}>₹ {t.totalAdvance.toLocaleString("en-IN")}</td>
+                    <td className={styles.amount}>₹ {t.balanceDue.toLocaleString("en-IN")}</td>
                     <td className={styles.amount}>{b.amount ? `₹ ${b.amount}` : "—"}</td>
                     {isAdmin && (
                       <td>
@@ -475,9 +503,39 @@ export default function BookingsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
+            </div>
+          )}
+
+          {loaded && filtered.length > 0 && pageCount > 1 && (
+            <div className={styles.pagination}>
+              <span className={styles.pageInfo}>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </span>
+              <div className={styles.pageBtns}>
+                <button
+                  className={styles.pageBtn}
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Prev
+                </button>
+                <span className={styles.pageCurrent}>
+                  Page {currentPage} of {pageCount}
+                </span>
+                <button
+                  className={styles.pageBtn}
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={currentPage === pageCount}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           )}
         </section>
       </div>
