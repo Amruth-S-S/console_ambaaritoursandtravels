@@ -240,7 +240,11 @@ export function readFileAsDataURL(file: File): Promise<string> {
   });
 }
 
-export async function downloadItineraryPdf(container: HTMLElement, filename = "itinerary.pdf") {
+export async function downloadItineraryPdf(
+  container: HTMLElement,
+  filename = "itinerary.pdf",
+  mode: "download" | "blob" = "download"
+): Promise<Blob | void> {
   const [{ default: html2canvas }, jspdfModule] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),
@@ -337,5 +341,6 @@ export async function downloadItineraryPdf(container: HTMLElement, filename = "i
     }
   }
 
+  if (mode === "blob") return pdf.output("blob") as Blob;
   pdf.save(filename);
 }

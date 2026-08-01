@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, AdvancePayment, Booking, Package, User } from "@/lib/api";
 import { buildUpiScannerDataUrl } from "@/lib/upiQr";
-import { computeInvoiceTotals, downloadInvoicePdf } from "@/lib/invoice";
+import { computeInvoiceTotals, downloadInvoicePdf, getInvoicePdfBlob } from "@/lib/invoice";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
@@ -277,6 +277,29 @@ export default function BookingsPage() {
     });
   }
 
+  function buildInvoiceInput() {
+    const pkg = packages.find((p) => p.id === form.packageId);
+    return {
+      companyName: pkg?.companyName || "Ambaari Tours and Travels",
+      clientName: form.clientName.trim(),
+      clientPhone: form.clientPhone.trim(),
+      location: form.location.trim(),
+      packageTitle: pkg?.packageTitle || "",
+      travelDate: form.travelDate,
+      adults: form.adults,
+      children: form.children,
+      adultPrice: form.adultPrice,
+      childPrice: form.childPrice,
+      advancePayments: form.advancePayments,
+      invoiceNumber: form.invoiceNumber,
+      invoiceDate: form.invoiceDate,
+    };
+  }
+
+  function invoiceFilename() {
+    return `invoice-${form.clientName.trim().replace(/\s+/g, "-").toLowerCase()}.pdf`;
+  }
+
   async function onDownloadInvoice() {
     if (!form.clientName.trim()) {
       notify("err", "Enter a client name first");
@@ -284,31 +307,28 @@ export default function BookingsPage() {
     }
     setInvoiceBusy(true);
     try {
-      const pkg = packages.find((p) => p.id === form.packageId);
-      const filename = `invoice-${form.clientName.trim().replace(/\s+/g, "-").toLowerCase()}.pdf`;
-      await downloadInvoicePdf(
-        {
-          companyName: pkg?.companyName || "Ambaari Tours and Travels",
-          clientName: form.clientName.trim(),
-          clientPhone: form.clientPhone.trim(),
-          location: form.location.trim(),
-          packageTitle: pkg?.packageTitle || "",
-          travelDate: form.travelDate,
-          adults: form.adults,
-          children: form.children,
-          adultPrice: form.adultPrice,
-          childPrice: form.childPrice,
-          advancePayments: form.advancePayments,
-          invoiceNumber: form.invoiceNumber,
-          invoiceDate: form.invoiceDate,
-        },
-        filename
-      );
+      await downloadInvoicePdf(buildInvoiceInput(), invoiceFilename());
       notify("ok", "Invoice downloaded");
     } catch (e) {
       notify("err", e instanceof Error ? e.message : "Failed to generate invoice");
     } finally {
       setInvoiceBusy(false);
+    }
+  }
+
+  // Fired after a booking is created — builds the same invoice PDF as the
+  // "Download Invoice PDF" button and hands it to the backend to email to
+  // the client and the company inbox. Runs after the modal has already
+  // closed, so failures here surface as a toast rather than blocking booking
+  // creation (the booking itself is already saved either way).
+  async function emailInvoice(bookingId: string) {
+    try {
+      const filename = invoiceFilename();
+      const blob = await getInvoicePdfBlob(buildInvoiceInput(), filename);
+      await api.sendBookingInvoiceEmail(bookingId, blob, filename);
+      notify("ok", "Invoice emailed to client & company");
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Booking saved, but the invoice email failed to send");
     }
   }
 
@@ -337,14 +357,17 @@ export default function BookingsPage() {
         transactionId: form.transactionId.trim(),
       };
       if (mode === "create") {
-        await api.createBooking(body);
+        const created = await api.createBooking(body);
         notify("ok", `Booking created for ${body.clientName}`);
+        setModalOpen(false);
+        load();
+        void emailInvoice(created.id);
       } else if (editingId) {
         await api.updateBooking(editingId, body);
         notify("ok", `Booking updated for ${body.clientName}`);
+        setModalOpen(false);
+        load();
       }
-      setModalOpen(false);
-      load();
     } catch (e) {
       setFormErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {

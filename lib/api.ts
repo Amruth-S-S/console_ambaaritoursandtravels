@@ -141,6 +141,25 @@ export const api = {
   deletePackage: (id: string) =>
     request<void>(`/packages/${id}`, { method: "DELETE" }),
 
+  sendBookingInvoiceEmail: async (bookingId: string, pdf: Blob, filename = "invoice.pdf") => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const form = new FormData();
+    form.append("invoice", pdf, filename);
+    const res = await fetch(`${API}/bookings/${bookingId}/send-invoice-email`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (!res.ok) {
+      let message = "Failed to send invoice email";
+      try {
+        const data = await res.json();
+        message = data.detail || message;
+      } catch {}
+      throw new Error(message);
+    }
+  },
+
   listBookings: () => request<Booking[]>("/bookings"),
   createBooking: (body: BookingData) =>
     request<Booking>("/bookings", {

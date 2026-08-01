@@ -177,7 +177,11 @@ function buildInvoiceHtml(input: InvoiceInput, qrDataUrl: string): string {
   </div>`;
 }
 
-export async function downloadInvoicePdf(input: InvoiceInput, filename = "invoice.pdf") {
+async function renderInvoicePdf(
+  input: InvoiceInput,
+  filename: string,
+  mode: "download" | "blob"
+): Promise<Blob | void> {
   const { balanceDue } = computeInvoiceTotals(input);
   const qrDataUrl = await buildUpiScannerDataUrl(String(balanceDue > 0 ? balanceDue : 0));
   const html = buildInvoiceHtml(input, qrDataUrl);
@@ -190,8 +194,18 @@ export async function downloadInvoicePdf(input: InvoiceInput, filename = "invoic
   container.innerHTML = html;
   document.body.appendChild(container);
   try {
-    await downloadItineraryPdf(container, filename);
+    return await downloadItineraryPdf(container, filename, mode);
   } finally {
     document.body.removeChild(container);
   }
+}
+
+export async function downloadInvoicePdf(input: InvoiceInput, filename = "invoice.pdf") {
+  await renderInvoicePdf(input, filename, "download");
+}
+
+// Same invoice render as downloadInvoicePdf, but returns the PDF bytes
+// instead of triggering a browser download — used to email the invoice.
+export async function getInvoicePdfBlob(input: InvoiceInput, filename = "invoice.pdf"): Promise<Blob> {
+  return (await renderInvoicePdf(input, filename, "blob")) as Blob;
 }
