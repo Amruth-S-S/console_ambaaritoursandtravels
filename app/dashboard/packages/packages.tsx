@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, Package, PackageData } from "@/lib/api";
-import { BANK_QR_BASE64 } from "@/lib/bankQr";
+import { SCANNER_QR_BASE64 } from "@/lib/scannerQr";
 import { buildPreviewHtml, downloadItineraryPdf, readFileAsDataURL, splitCommas } from "@/lib/itinerary";
 import { joinHtmlLines, splitHtmlLines } from "@/lib/richtext";
 import Navbar from "@/components/Navbar";
@@ -266,6 +266,7 @@ export default function PackagesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [savedPackages, setSavedPackages] = useState<Package[]>([]);
+  const [listLoading, setListLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeTab, setTypeTab] = useState<"all" | "domestic" | "international">("all");
   const [busy, setBusy] = useState(false);
@@ -286,10 +287,13 @@ export default function PackagesPage() {
   }
 
   async function loadPackages() {
+    setListLoading(true);
     try {
       setSavedPackages(await api.listPackages());
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load packages");
+    } finally {
+      setListLoading(false);
     }
   }
 
@@ -335,7 +339,7 @@ export default function PackagesPage() {
   }
 
   function generatePreview() {
-    setPreviewHtml(buildPreviewHtml(toPackageData(form), BANK_QR_BASE64));
+    setPreviewHtml(buildPreviewHtml(toPackageData(form), SCANNER_QR_BASE64));
   }
 
   async function handleDownloadPdf() {
@@ -356,7 +360,7 @@ export default function PackagesPage() {
   function loadExample() {
     setForm(EXAMPLE_FORM);
     setEditingId(null);
-    setPreviewHtml(buildPreviewHtml(toPackageData(EXAMPLE_FORM), BANK_QR_BASE64));
+    setPreviewHtml(buildPreviewHtml(toPackageData(EXAMPLE_FORM), SCANNER_QR_BASE64));
   }
 
   function newPackage() {
@@ -398,7 +402,7 @@ export default function PackagesPage() {
   function loadPackage(p: Package) {
     setForm(fromPackageData(p));
     setEditingId(p.id);
-    setPreviewHtml(buildPreviewHtml(p, BANK_QR_BASE64));
+    setPreviewHtml(buildPreviewHtml(p, SCANNER_QR_BASE64));
   }
 
   function openQuickPreview(p: Package) {
@@ -494,7 +498,7 @@ export default function PackagesPage() {
             <div className={styles.previewBox}>
               <div
                 className="itinerary-content"
-                dangerouslySetInnerHTML={{ __html: buildPreviewHtml(quickPreview, BANK_QR_BASE64) }}
+                dangerouslySetInnerHTML={{ __html: buildPreviewHtml(quickPreview, SCANNER_QR_BASE64) }}
               />
             </div>
           </div>
@@ -506,7 +510,7 @@ export default function PackagesPage() {
           <div
             ref={downloadRef}
             className="itinerary-content"
-            dangerouslySetInnerHTML={{ __html: buildPreviewHtml(downloadTarget, BANK_QR_BASE64) }}
+            dangerouslySetInnerHTML={{ __html: buildPreviewHtml(downloadTarget, SCANNER_QR_BASE64) }}
           />
         </div>
       )}
@@ -552,7 +556,11 @@ export default function PackagesPage() {
               </button>
             </div>
 
-            {savedPackages.length === 0 ? (
+            {listLoading ? (
+              <div className={styles.emptyState}>
+                <i className={`fas fa-spinner ${styles.spin}`} /> Loading packages…
+              </div>
+            ) : savedPackages.length === 0 ? (
               <div className={styles.emptyState}>
                 No packages yet — click <strong>Create Package</strong> to build your first one.
               </div>

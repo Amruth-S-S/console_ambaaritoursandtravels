@@ -104,7 +104,7 @@ export const BANK_DETAILS = {
   signatureTitle: "Managing Director, Ambaari Tours and Travels",
 };
 
-function renderBankDetailsSection(bankQr: string): string {
+function renderBankDetailsSection(scannerQr: string): string {
   return `<div class="section">
     <h3><i class="fas fa-university"></i> Bank Details</h3>
     <div class="bank-details-row">
@@ -116,7 +116,7 @@ function renderBankDetailsSection(bankQr: string): string {
             <span class="label">IFSC Code:</span><span>${escapeHtml(BANK_DETAILS.ifscCode)}</span>
         </div>
         <div class="qr-wrap">
-            <img src="${bankQr}" class="qr-img" alt="Payment QR Code">
+            <img src="${scannerQr}" class="qr-img" alt="Payment QR Code">
             <p class="qr-caption">Scan to pay</p>
             <div class="upi-apps">
                 <div class="upi-app-badge">
@@ -144,7 +144,7 @@ function renderBankDetailsSection(bankQr: string): string {
 </div>`;
 }
 
-export function buildPreviewHtml(data: PackageData, bankQr: string): string {
+export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
   let html = "";
 
   html += `<div class="header">`;
@@ -226,7 +226,7 @@ export function buildPreviewHtml(data: PackageData, bankQr: string): string {
          ${formatLegalText(data.termsConditions)}</div>`;
   }
 
-  html += renderBankDetailsSection(bankQr);
+  html += renderBankDetailsSection(scannerQr);
 
   return html;
 }

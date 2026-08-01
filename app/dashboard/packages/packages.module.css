@@ -656,6 +656,11 @@
   }
 }
 
+.spin {
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
 @media (max-width: 800px) {
   .container {
     flex-direction: column;
