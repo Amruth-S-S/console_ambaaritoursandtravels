@@ -130,10 +130,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, email, phone: phone || null, password }),
     }),
-  updateUser: (id: string, body: { name: string; email: string; phone: string }) =>
+  updateUser: (id: string, body: { name: string; email: string; phone: string; password?: string }) =>
     request<User>(`/users/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ ...body, phone: body.phone || null }),
+      // Omit password entirely when blank — the backend only resets it when
+      // the field is actually present in the request body.
+      body: JSON.stringify({
+        name: body.name,
+        email: body.email,
+        phone: body.phone || null,
+        ...(body.password ? { password: body.password } : {}),
+      }),
     }),
   deleteUser: (id: string) =>
     request<void>(`/users/${id}`, { method: "DELETE" }),

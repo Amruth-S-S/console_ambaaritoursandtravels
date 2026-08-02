@@ -134,6 +134,7 @@ export default function UsersPage() {
           name: form.name.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
+          password: form.password.trim(),
         });
         notify("ok", `Updated ${updated.name}`);
       }
@@ -167,11 +168,13 @@ export default function UsersPage() {
 
   if (user?.role !== "admin") return null;
 
-  const canSubmit =
-    form.name.trim() &&
-    form.email.trim() &&
-    (mode === "edit" || form.password.length >= 6) &&
-    !busy;
+  // Create always needs a password; edit's password is optional (blank =
+  // leave unchanged) but must still meet the length rule if the admin does
+  // type one in to reset it.
+  const passwordValid =
+    mode === "create" ? form.password.length >= 6 : form.password.length === 0 || form.password.length >= 6;
+
+  const canSubmit = form.name.trim() && form.email.trim() && passwordValid && !busy;
 
   return (
     <>
@@ -308,18 +311,18 @@ export default function UsersPage() {
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
         </div>
-        {mode === "create" && (
-          <div className={styles.field}>
-            <label htmlFor="m-password">Temporary password</label>
-            <input
-              id="m-password"
-              type="password"
-              value={form.password}
-              placeholder="Min. 6 characters"
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </div>
-        )}
+        <div className={styles.field}>
+          <label htmlFor="m-password">
+            {mode === "create" ? "Temporary password" : "Reset password (optional)"}
+          </label>
+          <input
+            id="m-password"
+            type="password"
+            value={form.password}
+            placeholder={mode === "create" ? "Min. 6 characters" : "Leave blank to keep current password"}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+        </div>
 
         {formErr && <div className={`${styles.msg} ${styles.err}`}>{formErr}</div>}
 
