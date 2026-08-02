@@ -37,6 +37,53 @@
   position: relative;
 }
 
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.sectionHead h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.refreshBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: filter 0.15s;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spin {
+  animation: overviewSpin 1s linear infinite;
+}
+
+@keyframes overviewSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

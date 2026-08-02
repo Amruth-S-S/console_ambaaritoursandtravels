@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, Booking, Package, User } from "@/lib/api";
 import { computeInvoiceTotals } from "@/lib/invoice";
@@ -8,6 +8,7 @@ import BookingsBarChart, { BarDatum } from "@/components/BookingsBarChart";
 import PieChart, { PieDatum } from "@/components/PieChart";
 import RevenueLineChart, { LinePoint } from "@/components/RevenueLineChart";
 import Navbar from "@/components/Navbar";
+import Toast, { ToastState } from "@/components/Toast";
 import dash from "./dashboard.module.css";
 import styles from "./overview.module.css";
 
@@ -27,29 +28,49 @@ export default function OverviewPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  function notify(type: "ok" | "err", text: string) {
+    window.clearTimeout(toastTimer.current);
+    setToast({ type, text });
+    toastTimer.current = window.setTimeout(() => setToast(null), 3200);
+  }
+
+  async function load(isManualRefresh = false) {
+    if (isManualRefresh) setRefreshing(true);
+    try {
+      const [b, u, p] = await Promise.all([
+        api.listBookings(),
+        api.listUsers(),
+        api.listPackages(),
+      ]);
+      setBookings(b);
+      setUsers(u);
+      setPackages(p);
+      if (isManualRefresh) notify("ok", "Dashboard refreshed");
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load dashboard data");
+    } finally {
+      setLoaded(true);
+      if (isManualRefresh) setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    if (!isAdmin) return;
-    (async () => {
-      try {
-        const [b, u, p] = await Promise.all([
-          api.listBookings(),
-          api.listUsers(),
-          api.listPackages(),
-        ]);
-        setBookings(b);
-        setUsers(u);
-        setPackages(p);
-      } catch {
-        /* ignore */
-      } finally {
-        setLoaded(true);
-      }
-    })();
+    if (isAdmin) load();
   }, [isAdmin]);
 
+  // "Revenue" here means money actually received — the sum of each
+  // booking's advance payments (same figure as the "Advance Paid" column on
+  // the Bookings page) — not the one-off "amount to collect now" field,
+  // which doesn't change when you add/edit a payment on an existing booking
+  // and was going stale on this page as a result.
   const totalRevenue = useMemo(
-    () => bookings.reduce((sum, b) => sum + (parseFloat(b.amount) || 0), 0),
+    () => bookings.reduce((sum, b) => sum + computeInvoiceTotals(b).totalAdvance, 0),
     [bookings]
   );
 
@@ -57,7 +78,7 @@ export default function OverviewPage() {
     const map = new Map<string, BarDatum>();
     for (const b of bookings) {
       const key = b.userId || "unknown";
-      const amount = parseFloat(b.amount) || 0;
+      const amount = computeInvoiceTotals(b).totalAdvance;
       const existing = map.get(key);
       if (existing) {
         existing.count += 1;
@@ -75,7 +96,7 @@ export default function OverviewPage() {
     let domesticCount = 0;
     let internationalCount = 0;
     for (const b of bookings) {
-      const amount = parseFloat(b.amount) || 0;
+      const amount = computeInvoiceTotals(b).totalAdvance;
       if (b.packageType === "international") {
         international += amount;
         internationalCount += 1;
@@ -188,7 +209,7 @@ export default function OverviewPage() {
       if (Number.isNaN(d.getTime())) continue;
       const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
-      const amount = parseFloat(b.amount) || 0;
+      const amount = computeInvoiceTotals(b).totalAdvance;
       const existing = map.get(sortKey);
       if (existing) existing.total += amount;
       else map.set(sortKey, { label, total: amount });
@@ -203,6 +224,7 @@ export default function OverviewPage() {
   return (
     <>
       <Navbar title="Overview" />
+      <Toast toast={toast} />
       <div className={dash.content}>
         <section className={styles.hero}>
           <span className={styles.glow} />
@@ -238,6 +260,18 @@ export default function OverviewPage() {
 
         {isAdmin && (
           <>
+            <div className={styles.sectionHead}>
+              <h2>Admin overview</h2>
+              <button
+                className={styles.refreshBtn}
+                onClick={() => load(true)}
+                disabled={refreshing}
+              >
+                <i className={`fas fa-sync-alt ${refreshing ? styles.spin : ""}`} />
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+            </div>
+
             <div className={styles.cards}>
               <div className={styles.card}>
                 <div className={styles.k}>Total bookings</div>
@@ -392,7 +426,7 @@ export default function OverviewPage() {
                       <tr>
                         <th>User</th>
                         <th>Bookings</th>
-                        <th>Total amount</th>
+                        <th>Advance Paid</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -450,7 +484,7 @@ export default function OverviewPage() {
                     <tr>
                       <th>Client</th>
                       <th>Package</th>
-                      <th>Amount</th>
+                      <th>Advance Paid</th>
                       <th>Booked by</th>
                     </tr>
                   </thead>
@@ -459,7 +493,7 @@ export default function OverviewPage() {
                       <tr key={b.id}>
                         <td>{b.clientName}</td>
                         <td>{b.packageTitle || "—"}</td>
-                        <td>{b.amount ? `₹ ${b.amount}` : "—"}</td>
+                        <td>₹ {computeInvoiceTotals(b).totalAdvance.toLocaleString("en-IN")}</td>
                         <td>{b.userName || "—"}</td>
                       </tr>
                     ))}
