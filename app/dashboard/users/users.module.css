@@ -235,6 +235,36 @@
   outline: none;
 }
 
+.passwordField {
+  position: relative;
+}
+
+.passwordField input {
+  padding-right: 40px;
+}
+
+.togglePassword {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--ink-faint);
+  transition: color 0.12s;
+}
+
+.togglePassword svg {
+  width: 17px;
+  height: 17px;
+}
+
+.togglePassword:hover {
+  color: var(--ink);
+}
+
 .msg {
   margin-top: 12px;
   padding: 9px 13px;

@@ -244,6 +244,7 @@ const nl2br = (s: string) => s.replace(/\n/g, "<br>");
 const EXAMPLE_FORM: FormState = {
   ...EXAMPLE_FORM_RAW,
   highlightsText: nl2br(EXAMPLE_FORM_RAW.highlightsText),
+  days: EXAMPLE_FORM_RAW.days.map((d) => ({ ...d, desc: nl2br(d.desc) })),
   inclusionsText: nl2br(EXAMPLE_FORM_RAW.inclusionsText),
   exclusionsText: nl2br(EXAMPLE_FORM_RAW.exclusionsText),
   cancellationPolicy: nl2br(EXAMPLE_FORM_RAW.cancellationPolicy),
@@ -718,12 +719,12 @@ export default function PackagesPage() {
                       />
                     </div>
                     <div className={styles.formGroup}>
-                      <label>Description</label>
-                      <textarea
-                        rows={3}
+                      <label>Description (one activity per line)</label>
+                      <RichTextField
                         value={day.desc}
+                        onChange={(html) => updateDay(idx, { desc: html })}
                         placeholder="Activities..."
-                        onChange={(e) => updateDay(idx, { desc: e.target.value })}
+                        rows={3}
                       />
                     </div>
                     <div className={`${styles.formGroup} ${styles.fileUpload}`}>

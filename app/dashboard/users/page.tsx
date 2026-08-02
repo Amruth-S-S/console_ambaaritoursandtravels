@@ -37,6 +37,24 @@ const DeleteIcon = (
   </svg>
 );
 
+const EyeIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const EyeOffIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path
+      d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A9.4 9.4 0 0 1 12 4c7 0 11 7 11 7a20.3 20.3 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M1 1l22 22" strokeLinecap="round" />
+  </svg>
+);
+
 type FormState = { name: string; email: string; phone: string; password: string };
 const emptyForm: FormState = { name: "", email: "", phone: "", password: "" };
 
@@ -54,6 +72,7 @@ export default function UsersPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -101,6 +120,7 @@ export default function UsersPage() {
     setEditingId(null);
     setForm(emptyForm);
     setFormErr("");
+    setShowPassword(false);
     setModalOpen(true);
   }
 
@@ -109,6 +129,7 @@ export default function UsersPage() {
     setEditingId(u.id);
     setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "" });
     setFormErr("");
+    setShowPassword(false);
     setModalOpen(true);
   }
 
@@ -315,13 +336,24 @@ export default function UsersPage() {
           <label htmlFor="m-password">
             {mode === "create" ? "Temporary password" : "Reset password (optional)"}
           </label>
-          <input
-            id="m-password"
-            type="password"
-            value={form.password}
-            placeholder={mode === "create" ? "Min. 6 characters" : "Leave blank to keep current password"}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
+          <div className={styles.passwordField}>
+            <input
+              id="m-password"
+              type={showPassword ? "text" : "password"}
+              value={form.password}
+              placeholder={mode === "create" ? "Min. 6 characters" : "Leave blank to keep current password"}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <button
+              type="button"
+              className={styles.togglePassword}
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? EyeOffIcon : EyeIcon}
+            </button>
+          </div>
         </div>
 
         {formErr && <div className={`${styles.msg} ${styles.err}`}>{formErr}</div>}

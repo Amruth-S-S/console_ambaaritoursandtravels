@@ -232,6 +232,12 @@
   line-height: 1.85;
 }
 
+.itinerary-content .day-item .day-line + .day-line,
+.itinerary-content .day-item .day-line + ul,
+.itinerary-content .day-item ul + .day-line {
+  margin-top: 6px;
+}
+
 .itinerary-content .day-image-grid {
   display: grid;
   gap: 8px;

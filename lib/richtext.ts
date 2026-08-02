@@ -74,6 +74,15 @@ export function htmlToText(html: string): string {
   return template.content.textContent || "";
 }
 
+// A line that's bold and/or highlighted reads as an intentional callout, not
+// a bullet point — used to auto-suppress the bullet on such lines wherever
+// bullets are auto-generated (Package Highlights, Inclusions, Exclusions,
+// Day descriptions, legal-text fields). Presence anywhere in the line is
+// enough — doesn't need to span the whole line.
+export function isEmphasizedLine(lineHtml: string): boolean {
+  return /<(b|strong)\b|<span\b[^>]*background-color/i.test(lineHtml);
+}
+
 // Splits rich HTML into per-line HTML fragments. A "line" boundary is either
 // a <br> (older data, or a manual line break) or a <div> (what Chrome's
 // native Enter key produces in a contenteditable — see RichTextField, which

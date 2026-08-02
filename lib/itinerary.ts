@@ -1,6 +1,13 @@
 import type { PackageData, PackageDay } from "./api";
 import { AMBAARI_LOGO_BASE64 } from "./ambaariLogo";
-import { escapeHtml, htmlToText, sanitizeRichHtml, splitHtmlLinesRaw } from "./richtext";
+import {
+  escapeHtml,
+  htmlToText,
+  isEmphasizedLine,
+  sanitizeRichHtml,
+  splitHtmlLines,
+  splitHtmlLinesRaw,
+} from "./richtext";
 
 export { escapeHtml };
 
@@ -18,10 +25,48 @@ export function splitCommas(text: string): string[] {
     .filter((s) => s !== "");
 }
 
+// Highlights/Inclusions/Exclusions/Day descriptions are all inherently
+// always-bulleted lists — except a bold and/or highlighted line, which reads
+// as a callout instead of a bullet point (see isEmphasizedLine). Consecutive
+// bulleted lines share one <ul>; a callout closes it and sits between as its
+// own paragraph. Plain-escaped text (old, pre-rich-text data) never matches
+// isEmphasizedLine, so it always falls through to "bulleted" — same look as
+// before rich text existed.
+function renderMixedBulletList(items: string[], calloutClass: string): string {
+  let html = "";
+  let listOpen = false;
+  const closeList = () => {
+    if (listOpen) {
+      html += "</ul>";
+      listOpen = false;
+    }
+  };
+  items.forEach((item) => {
+    const content = sanitizeRichHtml(item);
+    if (isEmphasizedLine(content)) {
+      closeList();
+      html += `<p class="${calloutClass}">${content}</p>`;
+    } else {
+      if (!listOpen) {
+        html += "<ul>";
+        listOpen = true;
+      }
+      html += `<li>${content}</li>`;
+    }
+  });
+  closeList();
+  return html;
+}
+
+// Day descriptions are edited as rich text (RichTextField, bold/highlight)
+// now, so this needs to handle real HTML lines — but packages saved before
+// that switch still have their description stored as plain "\n"-separated
+// text, so fall back to the old plain-text splitting for those.
 export function toBulletList(text: string): string {
-  const items = splitLines(text);
-  if (!items.length) return "";
-  return `<ul>${items.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>`;
+  const isRichHtml = /<div\b|<br\b/i.test(text);
+  const lines = isRichHtml ? splitHtmlLines(text) : splitLines(text).map(escapeHtml);
+  if (!lines.length) return "";
+  return renderMixedBulletList(lines, "day-line");
 }
 
 // The 3 legal-text fields (Cancellation Policy / Additional Information /
@@ -37,6 +82,10 @@ export function toBulletList(text: string): string {
 //   "- a point"         -> bullet point (or just a short unmarked line)
 //   "A full sentence."  -> stays as a bullet too (this tool renders everything
 //                          that isn't a heading as a bullet row)
+// A bold and/or highlighted line is the one exception to "everything that
+// isn't a heading is a bullet" — it renders as its own plain callout
+// paragraph instead (see isEmphasizedLine), so long as it isn't itself a
+// numbered/sub-heading (that detection still takes priority).
 export function formatLegalText(html: string): string {
   if (!html || !htmlToText(html).trim()) return "";
   // splitHtmlLinesRaw (not splitHtmlLines) — keeps blank lines, which is what
@@ -84,6 +133,9 @@ export function formatLegalText(html: string): string {
     } else if (subMatch) {
       flushBullets();
       out += `<p class="legal-heading-sub">${lineHtml}</p>`;
+    } else if (isEmphasizedLine(lineHtml)) {
+      flushBullets();
+      out += `<p class="legal-plain-line">${lineHtml}</p>`;
     } else if (bulletMatch) {
       // Strip a leading "- "/"• " etc. the same best-effort way.
       bulletBuffer.push(lineHtml.replace(/^\s*[-•✔✓➤▪◦]\s*/, ""));
@@ -160,9 +212,9 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
   html += `</div>`;
 
   if (data.highlights.length) {
-    html += `<div class="section"><h3><i class="fas fa-star" style="color:#f59e0b;"></i> Package Highlights</h3><ul>`;
-    data.highlights.forEach((h) => (html += `<li>${sanitizeRichHtml(h)}</li>`));
-    html += `</ul></div>`;
+    html += `<div class="section"><h3><i class="fas fa-star" style="color:#f59e0b;"></i> Package Highlights</h3>`;
+    html += renderMixedBulletList(data.highlights, "callout-line");
+    html += `</div>`;
   }
 
   const nonEmptyDays = data.days.filter(
@@ -202,16 +254,14 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
   if (data.inclusions.length || data.exclusions.length) {
     html += `<div class="section">`;
     if (data.inclusions.length) {
-      html += `<h3><i class="fas fa-check-circle" style="color:#22c55e;"></i> Inclusions</h3><ul>`;
-      data.inclusions.forEach((item) => (html += `<li>${sanitizeRichHtml(item)}</li>`));
-      html += `</ul>`;
+      html += `<h3><i class="fas fa-check-circle" style="color:#22c55e;"></i> Inclusions</h3>`;
+      html += renderMixedBulletList(data.inclusions, "callout-line");
     }
     if (data.exclusions.length) {
       if (data.inclusions.length)
         html += `<hr style="margin:14px 0; border:0; border-top:1px solid #e2e8f0;">`;
-      html += `<h3><i class="fas fa-times-circle" style="color:#ef4444;"></i> Exclusions</h3><ul>`;
-      data.exclusions.forEach((item) => (html += `<li>${sanitizeRichHtml(item)}</li>`));
-      html += `</ul>`;
+      html += `<h3><i class="fas fa-times-circle" style="color:#ef4444;"></i> Exclusions</h3>`;
+      html += renderMixedBulletList(data.exclusions, "callout-line");
     }
     html += `</div>`;
   }
