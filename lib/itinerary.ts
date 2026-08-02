@@ -1,4 +1,5 @@
 import type { PackageData, PackageDay } from "./api";
+import { AMBAARI_LOGO_BASE64 } from "./ambaariLogo";
 import { escapeHtml, htmlToText, sanitizeRichHtml, splitHtmlLinesRaw } from "./richtext";
 
 export { escapeHtml };
@@ -148,9 +149,11 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
   let html = "";
 
   html += `<div class="header">`;
-  if (data.logo) html += `<img src="${data.logo}" class="logo-img" alt="Logo">`;
-  else if (data.companyName)
-    html += `<div style="font-size:22px; font-weight:600;">${escapeHtml(data.companyName)}</div>`;
+  // Every itinerary carries the same fixed Ambaari branding — no per-package
+  // logo upload — so it always renders, never depends on what a package
+  // happens to have saved.
+  html += `<img src="${AMBAARI_LOGO_BASE64}" class="logo-img" alt="Ambaari Tours &amp; Travels">`;
+  html += `<div class="brand-name">Ambaari Tours And Travels</div>`;
   if (data.poster) html += `<div><img src="${data.poster}" class="poster-img" alt="Poster"></div>`;
   html += `<div class="title">${escapeHtml(data.packageTitle || "Package Title")}</div>`;
   html += `<div class="sub-title">Duration: ${escapeHtml(data.duration || "N/A")}</div>`;
@@ -174,7 +177,17 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
       if (day.images.length) {
         imagesHtml =
           `<div class="day-image-grid" style="grid-template-columns: repeat(${cols}, 1fr);">` +
-          day.images.map((src) => `<img src="${src}" class="day-img" alt="Day image">`).join("") +
+          day.images
+            .map((img) => {
+              const caption = img.caption.trim();
+              return (
+                `<div class="day-img-wrap">` +
+                `<img src="${img.src}" class="day-img" alt="${caption ? escapeHtml(caption) : "Day image"}">` +
+                (caption ? `<div class="day-img-caption">${escapeHtml(caption)}</div>` : "") +
+                `</div>`
+              );
+            })
+            .join("") +
           `</div>`;
       }
       html += `<div class="day-item">

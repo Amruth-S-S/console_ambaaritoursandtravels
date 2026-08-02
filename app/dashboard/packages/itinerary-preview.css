@@ -62,11 +62,19 @@
 }
 
 .itinerary-content .header .logo-img {
-  max-height: 64px;
-  margin-bottom: 10px;
-  background: white;
-  padding: 5px 14px;
-  border-radius: 8px;
+  /* Transparent PNG meant to sit directly on this header's dark gradient —
+     a white card behind it (the old per-upload treatment, for arbitrary
+     user logos of unknown contrast) would show as a visible white box. */
+  height: 90px;
+  width: auto;
+  margin-bottom: 16px;
+}
+
+.itinerary-content .header .brand-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  margin-bottom: 16px;
 }
 
 .itinerary-content .header .poster-img {
@@ -230,6 +238,11 @@
   margin: 10px 0 12px;
 }
 
+.itinerary-content .day-img-wrap {
+  max-width: 320px;
+  margin: 0 auto;
+}
+
 .itinerary-content .day-img {
   /* Width capped to a medium box (not the full ~970px day-item column) and
      height:auto (not a fixed height + object-fit) — the box is sized to the
@@ -241,7 +254,14 @@
   height: auto;
   border-radius: 8px;
   display: block;
-  margin: 0 auto;
+}
+
+.itinerary-content .day-img-caption {
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+  margin-top: 4px;
+  font-style: italic;
 }
 
 .itinerary-content .pricing-grid {

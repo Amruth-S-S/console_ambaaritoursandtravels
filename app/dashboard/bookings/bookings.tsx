@@ -47,6 +47,7 @@ type FormState = {
   location: string;
   packageType: "domestic" | "international";
   packageId: string;
+  landPackage: string;
   travelDate: string;
   finalPaymentDate: string;
   adults: string;
@@ -72,6 +73,7 @@ const emptyForm: FormState = {
   location: "",
   packageType: "domestic",
   packageId: "",
+  landPackage: "",
   travelDate: "",
   finalPaymentDate: "",
   adults: "1",
@@ -221,6 +223,7 @@ export default function BookingsPage() {
       location: b.location,
       packageType: b.packageType,
       packageId: b.packageId || "",
+      landPackage: b.landPackage || "",
       travelDate: b.travelDate,
       finalPaymentDate: b.finalPaymentDate,
       adults: b.adults,
@@ -344,6 +347,7 @@ export default function BookingsPage() {
         location: form.location.trim(),
         packageType: form.packageType,
         packageId: form.packageId || null,
+        landPackage: form.landPackage.trim(),
         travelDate: form.travelDate,
         finalPaymentDate: form.finalPaymentDate,
         adults: form.adults.trim() || "1",
@@ -665,6 +669,15 @@ export default function BookingsPage() {
               </option>
             ))}
           </select>
+        </div>
+        <div className={styles.field}>
+          <label htmlFor="b-land-package">Land package (Rs.)</label>
+          <input
+            id="b-land-package"
+            value={form.landPackage}
+            placeholder="e.g. 30000"
+            onChange={(e) => setForm({ ...form, landPackage: e.target.value })}
+          />
         </div>
         <div className={styles.row}>
           <div className={styles.field}>

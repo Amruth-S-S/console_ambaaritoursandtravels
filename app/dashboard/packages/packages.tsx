@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, Package, PackageData } from "@/lib/api";
+import { api, DayImage, Package, PackageData } from "@/lib/api";
 import { SCANNER_QR_BASE64 } from "@/lib/scannerQr";
 import { buildPreviewHtml, downloadItineraryPdf, readFileAsDataURL, splitCommas } from "@/lib/itinerary";
 import { joinHtmlLines, splitHtmlLines } from "@/lib/richtext";
@@ -11,7 +11,7 @@ import Toast, { ToastState } from "@/components/Toast";
 import "./itinerary-preview.css";
 import styles from "./packages.module.css";
 
-type DayState = { title: string; desc: string; images: string[] };
+type DayState = { title: string; desc: string; images: DayImage[] };
 
 type FormState = {
   companyName: string;
@@ -255,7 +255,7 @@ function coverImage(p: Package): string | null {
   if (p.poster) return p.poster;
   if (p.logo) return p.logo;
   for (const d of p.days) {
-    if (d.images.length) return d.images[0];
+    if (d.images.length) return d.images[0].src;
   }
   return null;
 }
@@ -307,11 +307,6 @@ export default function PackagesPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    updateField("logo", file ? await readFileAsDataURL(file) : null);
-  }
-
   async function handlePosterChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     updateField("poster", file ? await readFileAsDataURL(file) : null);
@@ -334,8 +329,19 @@ export default function PackagesPage() {
 
   async function handleDayImagesChange(idx: number, e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
-    const images = await Promise.all(files.map(readFileAsDataURL));
-    updateDay(idx, { images });
+    const srcs = await Promise.all(files.map(readFileAsDataURL));
+    updateDay(idx, { images: srcs.map((src) => ({ src, caption: "" })) });
+  }
+
+  function updateDayImageCaption(dayIdx: number, imageIdx: number, caption: string) {
+    setForm((f) => ({
+      ...f,
+      days: f.days.map((d, i) =>
+        i !== dayIdx
+          ? d
+          : { ...d, images: d.images.map((img, j) => (j === imageIdx ? { ...img, caption } : img)) }
+      ),
+    }));
   }
 
   function generatePreview() {
@@ -636,21 +642,6 @@ export default function PackagesPage() {
             </h2>
             <div className={styles.formPanelBody}>
 
-            <div className={styles.formGroup}>
-              <label>Company Name</label>
-              <input
-                type="text"
-                value={form.companyName}
-                placeholder="e.g. Ambaari Tours"
-                onChange={(e) => updateField("companyName", e.target.value)}
-              />
-            </div>
-            <div className={`${styles.formGroup} ${styles.fileUpload}`}>
-              <label>
-                <i className="fas fa-image" /> Company Logo
-              </label>
-              <input type="file" accept="image/*" onChange={handleLogoChange} />
-            </div>
             <div className={`${styles.formGroup} ${styles.fileUpload}`}>
               <label>
                 <i className="fas fa-image" /> Poster Image (optional)
@@ -742,9 +733,17 @@ export default function PackagesPage() {
                       <input type="file" accept="image/*" multiple onChange={(e) => handleDayImagesChange(idx, e)} />
                       {day.images.length > 0 && (
                         <div className={styles.dayImageThumbs}>
-                          {day.images.map((src, i) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img key={i} src={src} alt="" />
+                          {day.images.map((img, i) => (
+                            <div key={i} className={styles.dayImageThumb}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={img.src} alt="" />
+                              <input
+                                type="text"
+                                value={img.caption}
+                                placeholder="Caption (optional)"
+                                onChange={(e) => updateDayImageCaption(idx, i, e.target.value)}
+                              />
+                            </div>
                           ))}
                         </div>
                       )}

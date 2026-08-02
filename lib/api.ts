@@ -16,10 +16,15 @@ export type User = {
   role: "admin" | "user";
 };
 
+export type DayImage = {
+  src: string;
+  caption: string;
+};
+
 export type PackageDay = {
   title: string;
   desc: string;
-  images: string[];
+  images: DayImage[];
 };
 
 export type PackageData = {
@@ -62,6 +67,9 @@ export type BookingData = {
   location: string;
   packageType: "domestic" | "international";
   packageId: string | null;
+  // Internal land-vendor cost for this booking — used for margin reporting
+  // on the admin Overview page, deliberately never sent to buildInvoiceHtml.
+  landPackage: string;
   travelDate: string;
   finalPaymentDate: string;
   adults: string;
@@ -86,6 +94,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const res = await fetch(`${API}${path}`, {
     ...options,
+    // Every response here is live, mutable app data (users/packages/bookings)
+    // — never cache it, or an edit can appear not to "take" until a hard
+    // reload flushes a stale cached GET.
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

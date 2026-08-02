@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api, Booking, Package, User } from "@/lib/api";
+import { computeInvoiceTotals } from "@/lib/invoice";
 import BookingsBarChart, { BarDatum } from "@/components/BookingsBarChart";
 import PieChart, { PieDatum } from "@/components/PieChart";
 import RevenueLineChart, { LinePoint } from "@/components/RevenueLineChart";
@@ -10,10 +11,17 @@ import Navbar from "@/components/Navbar";
 import dash from "./dashboard.module.css";
 import styles from "./overview.module.css";
 
+// A plain parseFloat("30,000") stops at the comma and reads as 30 — strip
+// thousands separators first so "30,000" and "30000" parse identically and
+// group together instead of silently landing in different buckets.
+function parseAmount(value: string): number {
+  return parseFloat((value || "").replace(/,/g, "").trim()) || 0;
+}
+
 export default function OverviewPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const first = user?.name.split(" ")[0] ?? "there";
+  const first = user?.name?.split(" ")[0] ?? "there";
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -77,6 +85,65 @@ export default function OverviewPage() {
       }
     }
     return { domestic, international, domesticCount, internationalCount };
+  }, [bookings]);
+
+  // Land package = what's paid to the land vendor for a booking (internal
+  // cost, never shown on the client invoice). Net revenue here is the
+  // margin on that: full package price billed to the client minus that
+  // land-vendor cost — tracked separately for domestic vs. international
+  // since the two are priced and sourced independently.
+  const landPackageByType = useMemo(() => {
+    let domesticLand = 0;
+    let internationalLand = 0;
+    let domesticPackagePrice = 0;
+    let internationalPackagePrice = 0;
+    for (const b of bookings) {
+      const land = parseAmount(b.landPackage);
+      const packagePrice = computeInvoiceTotals(b).packagePrice;
+      if (b.packageType === "international") {
+        internationalLand += land;
+        internationalPackagePrice += packagePrice;
+      } else {
+        domesticLand += land;
+        domesticPackagePrice += packagePrice;
+      }
+    }
+    return {
+      domesticLand,
+      internationalLand,
+      domesticNetRevenue: domesticPackagePrice - domesticLand,
+      internationalNetRevenue: internationalPackagePrice - internationalLand,
+    };
+  }, [bookings]);
+
+  // Broken down per package title within each type — e.g. Thailand vs. Dubai
+  // under International — AND per land cost within that package. Grouping
+  // only by title used to lump every booking of a package into one bucket,
+  // so a later booking made after the land cost changed still got counted
+  // against the old figure. Keying on (title, landCost) instead means a
+  // price change starts its own row/bucket rather than merging into the
+  // previous one.
+  const landPackageByPackageName = useMemo(() => {
+    type Row = { title: string; landCost: number; bookingCount: number };
+    const domesticMap = new Map<string, Row>();
+    const internationalMap = new Map<string, Row>();
+    for (const b of bookings) {
+      const map = b.packageType === "international" ? internationalMap : domesticMap;
+      const title = (b.packageTitle || "Untitled package").trim();
+      const land = parseAmount(b.landPackage);
+      const key = `${title}::${land}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.bookingCount += 1;
+      } else {
+        map.set(key, { title, landCost: land, bookingCount: 1 });
+      }
+    }
+    const finalize = (m: Map<string, Row>) =>
+      Array.from(m.values())
+        .map((r) => ({ ...r, netRevenue: r.landCost * r.bookingCount }))
+        .sort((a, b) => a.title.localeCompare(b.title) || b.landCost - a.landCost);
+    return { domestic: finalize(domesticMap), international: finalize(internationalMap) };
   }, [bookings]);
 
   const revenuePieData: PieDatum[] = useMemo(
@@ -206,6 +273,101 @@ export default function OverviewPage() {
                 </div>
                 <div className={styles.v}>₹ {byType.international.toLocaleString("en-IN")}</div>
               </div>
+            </div>
+
+            <div className={styles.cards}>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic land package cost
+                </div>
+                <div className={styles.v}>₹ {landPackageByType.domesticLand.toLocaleString("en-IN")}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic net revenue (land)
+                </div>
+                <div className={styles.v}>
+                  ₹ {landPackageByType.domesticNetRevenue.toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International land package
+                  cost
+                </div>
+                <div className={styles.v}>₹ {landPackageByType.internationalLand.toLocaleString("en-IN")}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International net revenue
+                  (land)
+                </div>
+                <div className={styles.v}>
+                  ₹ {landPackageByType.internationalNetRevenue.toLocaleString("en-IN")}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.panelGrid}>
+              <section className={styles.panel}>
+                <h3>Domestic — land package by package</h3>
+                {!loaded ? (
+                  <div className={styles.loading}>Loading…</div>
+                ) : landPackageByPackageName.domestic.length === 0 ? (
+                  <div className={styles.loading}>No domestic bookings yet.</div>
+                ) : (
+                  <table className={styles.miniTable}>
+                    <thead>
+                      <tr>
+                        <th>Package</th>
+                        <th>Land cost</th>
+                        <th>Bookings</th>
+                        <th>Net revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {landPackageByPackageName.domestic.map((p) => (
+                        <tr key={`${p.title}::${p.landCost}`}>
+                          <td>{p.title}</td>
+                          <td>₹ {p.landCost.toLocaleString("en-IN")}</td>
+                          <td>{p.bookingCount}</td>
+                          <td>₹ {p.netRevenue.toLocaleString("en-IN")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+
+              <section className={styles.panel}>
+                <h3>International — land package by package</h3>
+                {!loaded ? (
+                  <div className={styles.loading}>Loading…</div>
+                ) : landPackageByPackageName.international.length === 0 ? (
+                  <div className={styles.loading}>No international bookings yet.</div>
+                ) : (
+                  <table className={styles.miniTable}>
+                    <thead>
+                      <tr>
+                        <th>Package</th>
+                        <th>Land cost</th>
+                        <th>Bookings</th>
+                        <th>Net revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {landPackageByPackageName.international.map((p) => (
+                        <tr key={`${p.title}::${p.landCost}`}>
+                          <td>{p.title}</td>
+                          <td>₹ {p.landCost.toLocaleString("en-IN")}</td>
+                          <td>{p.bookingCount}</td>
+                          <td>₹ {p.netRevenue.toLocaleString("en-IN")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
             </div>
 
             <div className={styles.panelGrid}>

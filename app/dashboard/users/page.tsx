@@ -74,8 +74,8 @@ export default function UsersPage() {
   async function load() {
     try {
       setUsers(await api.listUsers());
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load accounts");
     } finally {
       setLoaded(true);
     }
