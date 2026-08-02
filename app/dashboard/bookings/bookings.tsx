@@ -478,7 +478,6 @@ export default function BookingsPage() {
                   <th>Package Amount</th>
                   <th>Advance Paid</th>
                   <th>Balance Due</th>
-                  <th>Amount</th>
                   {isAdmin && <th>Booked By</th>}
                   <th></th>
                 </tr>
@@ -503,7 +502,6 @@ export default function BookingsPage() {
                     <td className={styles.amount}>₹ {t.packagePrice.toLocaleString("en-IN")}</td>
                     <td className={styles.amount}>₹ {t.totalAdvance.toLocaleString("en-IN")}</td>
                     <td className={styles.amount}>₹ {t.balanceDue.toLocaleString("en-IN")}</td>
-                    <td className={styles.amount}>{b.amount ? `₹ ${b.amount}` : "—"}</td>
                     {isAdmin && (
                       <td>
                         <span className={styles.userPill}>{b.userName || "—"}</span>

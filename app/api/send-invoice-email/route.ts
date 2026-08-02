@@ -22,22 +22,67 @@ type BookingOut = {
   amount: string;
 };
 
+function formatDate(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function formatRupees(amount: string): string {
+  const n = Number(amount);
+  return Number.isFinite(n) ? n.toLocaleString("en-IN") : amount || "0";
+}
+
+const EMAIL_SUBJECT = "✅ Booking Confirmed – Your Ambaari Tours & Travels Journey Awaits!";
+
 function invoiceEmailHtml(b: BookingOut): string {
+  const detailRow = (label: string, value: string) => `
+    <tr>
+      <td style="padding:8px 18px;color:#64748b;border-bottom:1px solid #e2e8f0;">${label}</td>
+      <td style="padding:8px 18px;font-weight:700;color:#0f2b45;border-bottom:1px solid #e2e8f0;">${value}</td>
+    </tr>`;
+
   return `
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#1e293b;line-height:1.5;">
-      <h2 style="color:#0f2b45;margin-bottom:4px;">Booking Confirmed</h2>
-      <p>Hi ${b.clientName || "there"},</p>
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#1e293b;line-height:1.6;max-width:600px;">
+      <p>Dear ${b.clientName || "Traveller"},</p>
+      <p>Greetings from Ambaari Tours and Travels!</p>
       <p>
-        Thank you for booking <b>${b.packageTitle || "your package"}</b> with
-        Ambaari Tours and Travels. Your invoice is attached to this email.
+        We are delighted to confirm your booking for the <b>${b.packageTitle || "your"} Tour Package</b>.
+        Thank you for choosing us to be a part of your travel experience.
       </p>
-      <table style="border-collapse:collapse;margin:14px 0;font-size:14px;">
-        <tr><td style="padding:3px 14px 3px 0;color:#64748b;">Invoice No.</td><td><b>${b.invoiceNumber || "—"}</b></td></tr>
-        <tr><td style="padding:3px 14px 3px 0;color:#64748b;">Invoice Date</td><td><b>${b.invoiceDate || "—"}</b></td></tr>
-        <tr><td style="padding:3px 14px 3px 0;color:#64748b;">Travel Date</td><td><b>${b.travelDate || "—"}</b></td></tr>
-        <tr><td style="padding:3px 14px 3px 0;color:#64748b;">Amount Collected</td><td><b>Rs. ${b.amount || "0"}</b></td></tr>
+      <p>Please find your booking details below:</p>
+
+      <h3 style="color:#0f2b45;margin:20px 0 8px;">Booking Details</h3>
+      <table style="border-collapse:collapse;width:100%;max-width:420px;background:#f8fafc;border-radius:8px;overflow:hidden;">
+        ${detailRow("Invoice Number", b.invoiceNumber || "—")}
+        ${detailRow("Invoice Date", formatDate(b.invoiceDate))}
+        ${detailRow("Travel Date", formatDate(b.travelDate))}
+        ${detailRow("Amount Received", `&#8377;${formatRupees(b.amount)}`)}
       </table>
-      <p>We look forward to making your journey unforgettable!</p>
+      <p>Your invoice has been attached to this email for your reference.</p>
+
+      <h3 style="color:#0f2b45;margin:20px 0 8px;">What's Next?</h3>
+      <ul style="padding-left:20px;">
+        <li>Please review your invoice and booking details carefully.</li>
+        <li>Ensure that your passport, visa, and other travel documents are valid and ready before your departure.</li>
+        <li>Our travel team will contact you closer to your travel date with your final itinerary, flight details, and other important travel information.</li>
+        <li>If you have any questions or require assistance, please don't hesitate to contact us. Our team is always happy to help.</li>
+      </ul>
+
+      <p>
+        Thank you once again for choosing Ambaari Tours and Travels. We look forward to creating
+        an unforgettable travel experience for you.
+      </p>
+
+      <p style="margin-top:24px;">
+        Warm Regards,<br>
+        <b>Ambaari Tours and Travels</b><br>
+        &#128222; +91 80730 97430<br>
+        &#128231; ambaaritoursandtravels09@gmail.com<br>
+        &#127760; www.ambaaritoursandtravels.com
+      </p>
+      <p style="font-style:italic;color:#64748b;">"Your Journey, Our Commitment."</p>
     </div>
   `;
 }
@@ -87,7 +132,7 @@ export async function POST(request: NextRequest) {
   }
 
   const pdfBuffer = Buffer.from(await file.arrayBuffer());
-  const subject = `Booking Confirmation - Invoice #${booking.invoiceNumber || booking.id}`;
+  const subject = EMAIL_SUBJECT;
   const html = invoiceEmailHtml(booking);
 
   const transporter = nodemailer.createTransport({
