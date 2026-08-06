@@ -54,6 +54,9 @@ type FormState = {
   children: string;
   adultPrice: string;
   childPrice: string;
+  flightAmount: string;
+  adultLandPrice: string;
+  childLandPrice: string;
   advancePayments: AdvancePayment[];
   invoiceNumber: string;
   invoiceDate: string;
@@ -80,6 +83,9 @@ const emptyForm: FormState = {
   children: "0",
   adultPrice: "",
   childPrice: "",
+  flightAmount: "",
+  adultLandPrice: "",
+  childLandPrice: "",
   advancePayments: [],
   invoiceNumber: "",
   invoiceDate: "",
@@ -230,6 +236,9 @@ export default function BookingsPage() {
       children: b.children,
       adultPrice: b.adultPrice,
       childPrice: b.childPrice,
+      flightAmount: b.flightAmount || "",
+      adultLandPrice: b.adultLandPrice || "",
+      childLandPrice: b.childLandPrice || "",
       advancePayments: b.advancePayments,
       invoiceNumber: b.invoiceNumber,
       invoiceDate: b.invoiceDate,
@@ -354,6 +363,9 @@ export default function BookingsPage() {
         children: form.children.trim() || "0",
         adultPrice: form.adultPrice.trim(),
         childPrice: form.childPrice.trim(),
+        flightAmount: form.flightAmount.trim(),
+        adultLandPrice: form.adultLandPrice.trim(),
+        childLandPrice: form.childLandPrice.trim(),
         advancePayments: form.advancePayments,
         invoiceNumber: form.invoiceNumber.trim(),
         invoiceDate: form.invoiceDate,
@@ -569,6 +581,7 @@ export default function BookingsPage() {
         open={modalOpen}
         onClose={closeModal}
         title={mode === "create" ? "Create booking" : "Edit booking"}
+        maxWidth={760}
       >
         <div className={styles.field}>
           <label htmlFor="b-user">User</label>
@@ -635,49 +648,51 @@ export default function BookingsPage() {
         </div>
 
         <div className={styles.sectionLabel}>Package details</div>
-        <div className={styles.field}>
-          <label htmlFor="b-package-type">Package type</label>
-          <select
-            id="b-package-type"
-            value={form.packageType}
-            onChange={(e) => {
-              const packageType = e.target.value as "domestic" | "international";
-              const selected = packages.find((p) => p.id === form.packageId);
-              const stillValid = selected?.packageType === packageType;
-              setForm({ ...form, packageType, packageId: stillValid ? form.packageId : "" });
-            }}
-          >
-            <option value="domestic">Domestic</option>
-            <option value="international">International</option>
-          </select>
-        </div>
-        <div className={styles.field}>
-          <label htmlFor="b-package">Package</label>
-          <select
-            id="b-package"
-            value={form.packageId}
-            onChange={(e) => setForm({ ...form, packageId: e.target.value })}
-          >
-            <option value="">
-              {matchingPackages.length === 0 ? "No packages available" : "Select a package…"}
-            </option>
-            {matchingPackages.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.packageTitle || "Untitled package"}
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="b-package-type">Package type</label>
+            <select
+              id="b-package-type"
+              value={form.packageType}
+              onChange={(e) => {
+                const packageType = e.target.value as "domestic" | "international";
+                const selected = packages.find((p) => p.id === form.packageId);
+                const stillValid = selected?.packageType === packageType;
+                setForm({ ...form, packageType, packageId: stillValid ? form.packageId : "" });
+              }}
+            >
+              <option value="domestic">Domestic</option>
+              <option value="international">International</option>
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-package">Package</label>
+            <select
+              id="b-package"
+              value={form.packageId}
+              onChange={(e) => setForm({ ...form, packageId: e.target.value })}
+            >
+              <option value="">
+                {matchingPackages.length === 0 ? "No packages available" : "Select a package…"}
               </option>
-            ))}
-          </select>
+              {matchingPackages.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.packageTitle || "Untitled package"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-land-package">Land package (Rs.)</label>
+            <input
+              id="b-land-package"
+              value={form.landPackage}
+              placeholder="e.g. 30000"
+              onChange={(e) => setForm({ ...form, landPackage: e.target.value })}
+            />
+          </div>
         </div>
-        <div className={styles.field}>
-          <label htmlFor="b-land-package">Land package (Rs.)</label>
-          <input
-            id="b-land-package"
-            value={form.landPackage}
-            placeholder="e.g. 30000"
-            onChange={(e) => setForm({ ...form, landPackage: e.target.value })}
-          />
-        </div>
-        <div className={styles.row}>
+        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="b-travel-date">Travel date</label>
             <input
@@ -696,8 +711,6 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, finalPaymentDate: e.target.value })}
             />
           </div>
-        </div>
-        <div className={styles.row}>
           <div className={styles.field}>
             <label htmlFor="b-adults">Adults</label>
             <input
@@ -709,7 +722,7 @@ export default function BookingsPage() {
             />
           </div>
         </div>
-        <div className={styles.row}>
+        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="b-children">Children (0–12 yrs)</label>
             <input
@@ -729,15 +742,44 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, adultPrice: e.target.value })}
             />
           </div>
+          <div className={styles.field}>
+            <label htmlFor="b-child-price">Child price (Rs. per child)</label>
+            <input
+              id="b-child-price"
+              value={form.childPrice}
+              placeholder="e.g. 25000"
+              onChange={(e) => setForm({ ...form, childPrice: e.target.value })}
+            />
+          </div>
         </div>
-        <div className={styles.field}>
-          <label htmlFor="b-child-price">Child price (Rs. per child)</label>
-          <input
-            id="b-child-price"
-            value={form.childPrice}
-            placeholder="e.g. 25000"
-            onChange={(e) => setForm({ ...form, childPrice: e.target.value })}
-          />
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="b-flight-amount">Flight amount (Rs.)</label>
+            <input
+              id="b-flight-amount"
+              value={form.flightAmount}
+              placeholder="e.g. 20000"
+              onChange={(e) => setForm({ ...form, flightAmount: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-adult-land-price">Adult land price (Rs.)</label>
+            <input
+              id="b-adult-land-price"
+              value={form.adultLandPrice}
+              placeholder="e.g. 15000"
+              onChange={(e) => setForm({ ...form, adultLandPrice: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-child-land-price">Child land price (Rs.)</label>
+            <input
+              id="b-child-land-price"
+              value={form.childLandPrice}
+              placeholder="e.g. 8000"
+              onChange={(e) => setForm({ ...form, childLandPrice: e.target.value })}
+            />
+          </div>
         </div>
 
         <div className={styles.sectionLabel}>Advance payments</div>

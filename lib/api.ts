@@ -51,6 +51,11 @@ export type PackageData = {
 export type Package = PackageData & {
   id: string;
   createdAt: string;
+  // Admin-only — the backend blanks this to "" for non-admin viewers no
+  // matter what's actually stored, and it's set only via
+  // api.updatePackageNetProfit, never through create/updatePackage (which
+  // send PackageData, a type that deliberately has no netProfit field).
+  netProfit: string;
 };
 
 export type AdvancePayment = {
@@ -76,6 +81,12 @@ export type BookingData = {
   children: string;
   adultPrice: string;
   childPrice: string;
+  flightAmount: string;
+  // Per-person land cost (mirrors adultPrice/childPrice) — used with
+  // adults/children on the admin dashboard's international net-revenue
+  // figure: packageNetProfit - (adultLandPrice*adults + childLandPrice*children).
+  adultLandPrice: string;
+  childLandPrice: string;
   advancePayments: AdvancePayment[];
   invoiceNumber: string;
   invoiceDate: string;
@@ -156,6 +167,11 @@ export const api = {
     request<Package>(`/packages/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
+    }),
+  updatePackageNetProfit: (id: string, netProfit: string) =>
+    request<Package>(`/packages/${id}/net-profit`, {
+      method: "PUT",
+      body: JSON.stringify({ netProfit }),
     }),
   deletePackage: (id: string) =>
     request<void>(`/packages/${id}`, { method: "DELETE" }),

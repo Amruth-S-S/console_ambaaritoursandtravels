@@ -8,11 +8,15 @@ export default function Modal({
   onClose,
   title,
   children,
+  maxWidth,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  // Overrides the default 480px cap (see Modal.module.css .modal) for
+  // modals that need more room — e.g. a form with 3-column rows.
+  maxWidth?: number;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -29,6 +33,7 @@ export default function Modal({
     <div className={styles.overlay}>
       <div
         className={styles.modal}
+        style={maxWidth ? { maxWidth } : undefined}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

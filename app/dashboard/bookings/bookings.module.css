@@ -300,6 +300,17 @@
   flex: 1;
 }
 
+.row3 {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.row3 .field {
+  flex: 1 1 0;
+  min-width: 160px;
+}
+
 .field {
   margin-top: 12px;
 }
@@ -608,7 +619,8 @@
   .search input {
     width: 100%;
   }
-  .row {
+  .row,
+  .row3 {
     flex-direction: column;
     gap: 0;
   }

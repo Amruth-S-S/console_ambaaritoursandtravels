@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { api, DayImage, Package, PackageData } from "@/lib/api";
 import { SCANNER_QR_BASE64 } from "@/lib/scannerQr";
 import { buildPreviewHtml, downloadItineraryPdf, readFileAsDataURL, splitCommas } from "@/lib/itinerary";
 import { joinHtmlLines, splitHtmlLines } from "@/lib/richtext";
 import Navbar from "@/components/Navbar";
+import Modal from "@/components/Modal";
 import RichTextField from "@/components/RichTextField";
 import Toast, { ToastState } from "@/components/Toast";
 import "./itinerary-preview.css";
@@ -262,6 +264,9 @@ function coverImage(p: Package): string | null {
 }
 
 export default function PackagesPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [view, setView] = useState<"list" | "builder">("list");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -280,6 +285,13 @@ export default function PackagesPage() {
   const [quickPreview, setQuickPreview] = useState<Package | null>(null);
   const [downloadTarget, setDownloadTarget] = useState<Package | null>(null);
   const downloadRef = useRef<HTMLDivElement>(null);
+
+  // Admin-only net profit note per package — separate from the builder form
+  // entirely, so it never touches PackageData/toPackageData/buildPreviewHtml
+  // and can't end up in the itinerary preview or PDF.
+  const [netProfitTarget, setNetProfitTarget] = useState<Package | null>(null);
+  const [netProfitValue, setNetProfitValue] = useState("");
+  const [netProfitBusy, setNetProfitBusy] = useState(false);
 
   function notify(type: "ok" | "err", text: string) {
     window.clearTimeout(toastTimer.current);
@@ -420,6 +432,33 @@ export default function PackagesPage() {
     setQuickPreview(null);
   }
 
+  function openNetProfit(p: Package) {
+    setNetProfitTarget(p);
+    setNetProfitValue(p.netProfit || "");
+  }
+
+  function closeNetProfit() {
+    if (netProfitBusy) return;
+    setNetProfitTarget(null);
+    setNetProfitValue("");
+  }
+
+  async function saveNetProfit() {
+    if (!netProfitTarget) return;
+    setNetProfitBusy(true);
+    try {
+      const updated = await api.updatePackageNetProfit(netProfitTarget.id, netProfitValue.trim());
+      setSavedPackages((list) => list.map((p) => (p.id === updated.id ? updated : p)));
+      notify("ok", "Net profit saved");
+      setNetProfitTarget(null);
+      setNetProfitValue("");
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to save net profit");
+    } finally {
+      setNetProfitBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!downloadTarget) return;
     (async () => {
@@ -522,6 +561,29 @@ export default function PackagesPage() {
         </div>
       )}
 
+      {isAdmin && (
+        <Modal open={!!netProfitTarget} onClose={closeNetProfit} title="Net profit">
+          <div className={styles.npField}>
+            <label>{netProfitTarget?.packageTitle || "Untitled package"}</label>
+            <input
+              type="text"
+              value={netProfitValue}
+              placeholder="e.g. 15000"
+              onChange={(e) => setNetProfitValue(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className={styles.npActions}>
+            <button className={styles.npCancelBtn} onClick={closeNetProfit} disabled={netProfitBusy}>
+              Cancel
+            </button>
+            <button className={styles.npSaveBtn} onClick={saveNetProfit} disabled={netProfitBusy}>
+              {netProfitBusy ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       <div className={styles.page}>
         {view === "list" ? (
           <>
@@ -598,6 +660,15 @@ export default function PackagesPage() {
                           {p.adultPrice && <span>₹ {p.adultPrice}</span>}
                         </div>
                         <div className={styles.cardActions}>
+                          {isAdmin && (
+                            <button
+                              className={styles.iconBtn}
+                              onClick={() => openNetProfit(p)}
+                              title="Net profit (admin only)"
+                            >
+                              <i className="fas fa-chart-line" />
+                            </button>
+                          )}
                           <button className={styles.iconBtn} onClick={() => openQuickPreview(p)} title="Preview">
                             <i className="fas fa-eye" />
                           </button>
