@@ -127,9 +127,12 @@
 
 .grid {
   display: grid;
-  /* fixed max (not 1fr) so a lone card doesn't stretch to fill the row —
-     leftover row space is just left empty instead of blowing the card up */
-  grid-template-columns: repeat(auto-fill, minmax(190px, 210px));
+  /* Fixed exact width (not a minmax range) so every card is identically
+     sized, full stop — including a lone card left alone on the last row,
+     which minmax's max-bound was meant to cap but apparently didn't always
+     hold in practice. A fixed length leaves no room for any track to size
+     differently from the rest. */
+  grid-template-columns: repeat(auto-fill, 210px);
   gap: 16px;
   /* auto-fill can leave a run of unused track width on a wide screen (not
      enough cards to fill the row) — center the block of cards in that space
@@ -148,23 +151,30 @@
 
 .cardImage {
   background: #e2e8f0;
+  /* Fixed height (was height:auto, following each photo's own ratio) — a
+     tall/portrait upload made that one card much taller than its row
+     neighbors, an inconsistent-looking grid. This box is a plain CSS rule,
+     not sized per-package, so every card — including ones created after
+     today — automatically gets this exact same size with zero extra setup.
+     object-fit:contain below shows the whole photo uncropped; whatever
+     doesn't fill this box's shape shows as this background color instead
+     (see the itineraryDetails "Poster Image" field's own aspect ratio —
+     uploads closer to this box's ~210:160 ratio will show with the least
+     visible margin). */
+  height: 160px;
+  overflow: hidden;
 }
 
 .cardImage img {
-  /* No fixed height/object-fit here: a fixed box was either cropping the
-     photo (cover) or leaving empty letterbox bars beside it (contain) when
-     the box's ratio didn't match the upload's. Filling the width and letting
-     height follow the image's own ratio shows the whole photo edge-to-edge
-     with no gaps, whatever its shape — the card is just as tall as it needs
-     to be. */
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
   display: block;
 }
 
 .cardImagePlaceholder {
   width: 100%;
-  height: 140px;
+  height: 160px;
   display: grid;
   place-items: center;
   background: linear-gradient(135deg, #1e3a5f, #2a4f7a);
