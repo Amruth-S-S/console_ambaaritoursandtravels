@@ -51,11 +51,13 @@ export type PackageData = {
 export type Package = PackageData & {
   id: string;
   createdAt: string;
-  // Admin-only — the backend blanks this to "" for non-admin viewers no
-  // matter what's actually stored, and it's set only via
+  // Admin-only — the backend blanks these to "" for non-admin viewers no
+  // matter what's actually stored, and they're set only via
   // api.updatePackageNetProfit, never through create/updatePackage (which
-  // send PackageData, a type that deliberately has no netProfit field).
-  netProfit: string;
+  // send PackageData, a type that deliberately has no net-profit fields).
+  adultNetProfit: string;
+  childNetProfit: string;
+  infantNetProfit: string;
 };
 
 export type AdvancePayment = {
@@ -79,14 +81,17 @@ export type BookingData = {
   finalPaymentDate: string;
   adults: string;
   children: string;
+  infants: string;
   adultPrice: string;
   childPrice: string;
+  infantPrice: string;
   flightAmount: string;
-  // Per-person land cost (mirrors adultPrice/childPrice) — used with
-  // adults/children on the admin dashboard's international net-revenue
-  // figure: packageNetProfit - (adultLandPrice*adults + childLandPrice*children).
+  // Per-person land cost (mirrors adultPrice/childPrice/infantPrice) — used
+  // with adults/children/infants on the admin dashboard's net-revenue
+  // figures: categoryNetProfit - (categoryLandPrice * categoryCount).
   adultLandPrice: string;
   childLandPrice: string;
+  infantLandPrice: string;
   advancePayments: AdvancePayment[];
   invoiceNumber: string;
   invoiceDate: string;
@@ -168,10 +173,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
-  updatePackageNetProfit: (id: string, netProfit: string) =>
+  updatePackageNetProfit: (
+    id: string,
+    body: { adultNetProfit: string; childNetProfit: string; infantNetProfit: string }
+  ) =>
     request<Package>(`/packages/${id}/net-profit`, {
       method: "PUT",
-      body: JSON.stringify({ netProfit }),
+      body: JSON.stringify(body),
     }),
   deletePackage: (id: string) =>
     request<void>(`/packages/${id}`, { method: "DELETE" }),

@@ -52,11 +52,14 @@ type FormState = {
   finalPaymentDate: string;
   adults: string;
   children: string;
+  infants: string;
   adultPrice: string;
   childPrice: string;
+  infantPrice: string;
   flightAmount: string;
   adultLandPrice: string;
   childLandPrice: string;
+  infantLandPrice: string;
   advancePayments: AdvancePayment[];
   invoiceNumber: string;
   invoiceDate: string;
@@ -81,11 +84,14 @@ const emptyForm: FormState = {
   finalPaymentDate: "",
   adults: "1",
   children: "0",
+  infants: "0",
   adultPrice: "",
   childPrice: "",
+  infantPrice: "",
   flightAmount: "",
   adultLandPrice: "",
   childLandPrice: "",
+  infantLandPrice: "",
   advancePayments: [],
   invoiceNumber: "",
   invoiceDate: "",
@@ -130,21 +136,20 @@ export default function BookingsPage() {
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   }
 
-  async function load() {
-    try {
-      const [b, u, p] = await Promise.all([
-        api.listBookings(),
-        api.listUsers(),
-        api.listPackages(),
-      ]);
-      setBookings(b);
-      setUsers(u);
-      setPackages(p);
-    } catch {
-      /* ignore */
-    } finally {
-      setLoaded(true);
-    }
+  // Bookings, users, and packages load independently now (not Promise.all'd
+  // together) — the bookings table only needs `bookings` + `loaded`, so it
+  // used to sit on "Loading…" waiting on users/packages to finish even after
+  // its own request had already come back, whenever either of those two was
+  // the slower of the three. Users/packages only matter once the create/edit
+  // modal is open, so there's no downside to them arriving a beat later.
+  function load() {
+    api
+      .listBookings()
+      .then(setBookings)
+      .catch((e) => notify("err", e instanceof Error ? e.message : "Failed to load bookings"))
+      .finally(() => setLoaded(true));
+    api.listUsers().then(setUsers).catch(() => {});
+    api.listPackages().then(setPackages).catch(() => {});
   }
 
   useEffect(() => {
@@ -234,11 +239,14 @@ export default function BookingsPage() {
       finalPaymentDate: b.finalPaymentDate,
       adults: b.adults,
       children: b.children,
+      infants: b.infants || "0",
       adultPrice: b.adultPrice,
       childPrice: b.childPrice,
+      infantPrice: b.infantPrice || "",
       flightAmount: b.flightAmount || "",
       adultLandPrice: b.adultLandPrice || "",
       childLandPrice: b.childLandPrice || "",
+      infantLandPrice: b.infantLandPrice || "",
       advancePayments: b.advancePayments,
       invoiceNumber: b.invoiceNumber,
       invoiceDate: b.invoiceDate,
@@ -361,11 +369,14 @@ export default function BookingsPage() {
         finalPaymentDate: form.finalPaymentDate,
         adults: form.adults.trim() || "1",
         children: form.children.trim() || "0",
+        infants: form.infants.trim() || "0",
         adultPrice: form.adultPrice.trim(),
         childPrice: form.childPrice.trim(),
+        infantPrice: form.infantPrice.trim(),
         flightAmount: form.flightAmount.trim(),
         adultLandPrice: form.adultLandPrice.trim(),
         childLandPrice: form.childLandPrice.trim(),
+        infantLandPrice: form.infantLandPrice.trim(),
         advancePayments: form.advancePayments,
         invoiceNumber: form.invoiceNumber.trim(),
         invoiceDate: form.invoiceDate,
@@ -734,6 +745,16 @@ export default function BookingsPage() {
             />
           </div>
           <div className={styles.field}>
+            <label htmlFor="b-infants">Infants</label>
+            <input
+              id="b-infants"
+              type="number"
+              min="0"
+              value={form.infants}
+              onChange={(e) => setForm({ ...form, infants: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
             <label htmlFor="b-adult-price">Adult price (Rs. per adult)</label>
             <input
               id="b-adult-price"
@@ -742,6 +763,8 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, adultPrice: e.target.value })}
             />
           </div>
+        </div>
+        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="b-child-price">Child price (Rs. per child)</label>
             <input
@@ -751,8 +774,15 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, childPrice: e.target.value })}
             />
           </div>
-        </div>
-        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="b-infant-price">Infant price (Rs. per infant)</label>
+            <input
+              id="b-infant-price"
+              value={form.infantPrice}
+              placeholder="e.g. 5000"
+              onChange={(e) => setForm({ ...form, infantPrice: e.target.value })}
+            />
+          </div>
           <div className={styles.field}>
             <label htmlFor="b-flight-amount">Flight amount (Rs.)</label>
             <input
@@ -762,6 +792,8 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, flightAmount: e.target.value })}
             />
           </div>
+        </div>
+        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="b-adult-land-price">Adult land price (Rs.)</label>
             <input
@@ -778,6 +810,15 @@ export default function BookingsPage() {
               value={form.childLandPrice}
               placeholder="e.g. 8000"
               onChange={(e) => setForm({ ...form, childLandPrice: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-infant-land-price">Infant land price (Rs.)</label>
+            <input
+              id="b-infant-land-price"
+              value={form.infantLandPrice}
+              placeholder="e.g. 4000"
+              onChange={(e) => setForm({ ...form, infantLandPrice: e.target.value })}
             />
           </div>
         </div>

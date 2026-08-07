@@ -277,6 +277,11 @@ export default function PackagesPage() {
   const [typeTab, setTypeTab] = useState<"all" | "domestic" | "international">("all");
   const [busy, setBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  // Which card's Preview/Edit/Download button is mid-fetch — the list only
+  // carries lightweight package data now (see backend list_packages), so
+  // opening a specific package for real means fetching its full detail
+  // (day images included) first.
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -288,9 +293,13 @@ export default function PackagesPage() {
 
   // Admin-only net profit note per package — separate from the builder form
   // entirely, so it never touches PackageData/toPackageData/buildPreviewHtml
-  // and can't end up in the itinerary preview or PDF.
+  // and can't end up in the itinerary preview or PDF. Split per pax category
+  // (adult/child/infant) to match the per-category land price fields on
+  // bookings — see the dashboard's net-revenue tables.
   const [netProfitTarget, setNetProfitTarget] = useState<Package | null>(null);
-  const [netProfitValue, setNetProfitValue] = useState("");
+  const [adultNetProfitValue, setAdultNetProfitValue] = useState("");
+  const [childNetProfitValue, setChildNetProfitValue] = useState("");
+  const [infantNetProfitValue, setInfantNetProfitValue] = useState("");
   const [netProfitBusy, setNetProfitBusy] = useState(false);
 
   function notify(type: "ok" | "err", text: string) {
@@ -393,9 +402,17 @@ export default function PackagesPage() {
     setView("builder");
   }
 
-  function openEdit(p: Package) {
-    loadPackage(p);
-    setView("builder");
+  async function openEdit(p: Package) {
+    setOpeningId(p.id);
+    try {
+      const full = await api.getPackage(p.id);
+      loadPackage(full);
+      setView("builder");
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load package");
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   async function savePackage() {
@@ -424,8 +441,15 @@ export default function PackagesPage() {
     setPreviewHtml(buildPreviewHtml(p, SCANNER_QR_BASE64));
   }
 
-  function openQuickPreview(p: Package) {
-    setQuickPreview(p);
+  async function openQuickPreview(p: Package) {
+    setOpeningId(p.id);
+    try {
+      setQuickPreview(await api.getPackage(p.id));
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load package");
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   function closeQuickPreview() {
@@ -434,24 +458,34 @@ export default function PackagesPage() {
 
   function openNetProfit(p: Package) {
     setNetProfitTarget(p);
-    setNetProfitValue(p.netProfit || "");
+    setAdultNetProfitValue(p.adultNetProfit || "");
+    setChildNetProfitValue(p.childNetProfit || "");
+    setInfantNetProfitValue(p.infantNetProfit || "");
   }
 
   function closeNetProfit() {
     if (netProfitBusy) return;
     setNetProfitTarget(null);
-    setNetProfitValue("");
+    setAdultNetProfitValue("");
+    setChildNetProfitValue("");
+    setInfantNetProfitValue("");
   }
 
   async function saveNetProfit() {
     if (!netProfitTarget) return;
     setNetProfitBusy(true);
     try {
-      const updated = await api.updatePackageNetProfit(netProfitTarget.id, netProfitValue.trim());
+      const updated = await api.updatePackageNetProfit(netProfitTarget.id, {
+        adultNetProfit: adultNetProfitValue.trim(),
+        childNetProfit: childNetProfitValue.trim(),
+        infantNetProfit: infantNetProfitValue.trim(),
+      });
       setSavedPackages((list) => list.map((p) => (p.id === updated.id ? updated : p)));
       notify("ok", "Net profit saved");
       setNetProfitTarget(null);
-      setNetProfitValue("");
+      setAdultNetProfitValue("");
+      setChildNetProfitValue("");
+      setInfantNetProfitValue("");
     } catch (e) {
       notify("err", e instanceof Error ? e.message : "Failed to save net profit");
     } finally {
@@ -478,9 +512,17 @@ export default function PackagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [downloadTarget]);
 
-  function downloadPackagePdf(p: Package) {
-    setPdfBusy(true);
-    setDownloadTarget(p);
+  async function downloadPackagePdf(p: Package) {
+    setOpeningId(p.id);
+    try {
+      const full = await api.getPackage(p.id);
+      setPdfBusy(true);
+      setDownloadTarget(full);
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load package");
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   function deletePackage(id: string, title: string) {
@@ -565,12 +607,36 @@ export default function PackagesPage() {
         <Modal open={!!netProfitTarget} onClose={closeNetProfit} title="Net profit">
           <div className={styles.npField}>
             <label>{netProfitTarget?.packageTitle || "Untitled package"}</label>
+          </div>
+          <div className={styles.npField}>
+            <label htmlFor="np-adult">Adult net profit</label>
             <input
+              id="np-adult"
               type="text"
-              value={netProfitValue}
+              value={adultNetProfitValue}
               placeholder="e.g. 15000"
-              onChange={(e) => setNetProfitValue(e.target.value)}
+              onChange={(e) => setAdultNetProfitValue(e.target.value)}
               autoFocus
+            />
+          </div>
+          <div className={styles.npField}>
+            <label htmlFor="np-child">Child net profit</label>
+            <input
+              id="np-child"
+              type="text"
+              value={childNetProfitValue}
+              placeholder="e.g. 8000"
+              onChange={(e) => setChildNetProfitValue(e.target.value)}
+            />
+          </div>
+          <div className={styles.npField}>
+            <label htmlFor="np-infant">Infant net profit</label>
+            <input
+              id="np-infant"
+              type="text"
+              value={infantNetProfitValue}
+              placeholder="e.g. 3000"
+              onChange={(e) => setInfantNetProfitValue(e.target.value)}
             />
           </div>
           <div className={styles.npActions}>
@@ -669,19 +735,31 @@ export default function PackagesPage() {
                               <i className="fas fa-chart-line" />
                             </button>
                           )}
-                          <button className={styles.iconBtn} onClick={() => openQuickPreview(p)} title="Preview">
-                            <i className="fas fa-eye" />
+                          <button
+                            className={styles.iconBtn}
+                            onClick={() => openQuickPreview(p)}
+                            title="Preview"
+                            disabled={openingId === p.id}
+                          >
+                            <i className={openingId === p.id ? `fas fa-spinner ${styles.spin}` : "fas fa-eye"} />
                           </button>
-                          <button className={styles.iconBtn} onClick={() => openEdit(p)} title="Edit">
-                            <i className="fas fa-pencil-alt" />
+                          <button
+                            className={styles.iconBtn}
+                            onClick={() => openEdit(p)}
+                            title="Edit"
+                            disabled={openingId === p.id}
+                          >
+                            <i
+                              className={openingId === p.id ? `fas fa-spinner ${styles.spin}` : "fas fa-pencil-alt"}
+                            />
                           </button>
                           <button
                             className={styles.iconBtn}
                             onClick={() => downloadPackagePdf(p)}
                             title="Download PDF"
-                            disabled={pdfBusy}
+                            disabled={pdfBusy || openingId === p.id}
                           >
-                            <i className="fas fa-download" />
+                            <i className={openingId === p.id ? `fas fa-spinner ${styles.spin}` : "fas fa-download"} />
                           </button>
                           <button
                             className={`${styles.iconBtn} ${styles.iconBtnDanger}`}

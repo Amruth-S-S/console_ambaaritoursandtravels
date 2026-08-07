@@ -195,13 +195,29 @@ export default function OverviewPage() {
 
   // Domestic/International Net Revenue — one row per package (not per
   // booking, so a package's net profit isn't double-counted across its
-  // bookings): that package's admin-entered net profit minus the total land
-  // cost actually paid out across ALL its bookings of that type
-  // (adultLandPrice*adults + childLandPrice*children per booking, 0 for
-  // children/childLandPrice left blank).
-  function netRevenueByPackage(type: "domestic" | "international") {
+  // bookings), broken out per pax category: that category's admin-entered
+  // net profit is PER PERSON, same as the land price, so both get scaled by
+  // headcount the same way before comparing — categoryNetProfit * count vs.
+  // categoryLandPrice * count, both summed across all the package's bookings
+  // of this type. Each category's amount is the larger-minus-smaller
+  // difference (never negative) between those two scaled totals — see the
+  // earlier "-41,000 looked wrong" fix. Total is just the 3 category amounts
+  // added together.
+  type CategoryTotal = { count: number; land: number; net: number };
+  type PackageNetRevenueRow = {
+    title: string;
+    adult: CategoryTotal & { amount: number };
+    child: CategoryTotal & { amount: number };
+    infant: CategoryTotal & { amount: number };
+    total: number;
+  };
+
+  function netRevenueByPackage(type: "domestic" | "international"): PackageNetRevenueRow[] {
     const packageById = new Map(packages.map((p) => [p.id, p]));
-    const landByPackage = new Map<string, { title: string; land: number }>();
+    const byPackage = new Map<
+      string,
+      { title: string; adult: CategoryTotal; child: CategoryTotal; infant: CategoryTotal }
+    >();
     for (const b of bookings) {
       if (b.packageType !== type) continue;
       const pkg = packageById.get(b.packageId || "");
@@ -209,21 +225,47 @@ export default function OverviewPage() {
       const key = b.packageId || title;
       const adults = parseFloat(b.adults) || 0;
       const children = parseFloat(b.children) || 0;
-      const land = parseAmount(b.adultLandPrice) * adults + parseAmount(b.childLandPrice) * children;
-      const existing = landByPackage.get(key);
-      if (existing) existing.land += land;
-      else landByPackage.set(key, { title, land });
+      const infants = parseFloat(b.infants) || 0;
+      const existing = byPackage.get(key) || {
+        title,
+        adult: { count: 0, land: 0, net: 0 },
+        child: { count: 0, land: 0, net: 0 },
+        infant: { count: 0, land: 0, net: 0 },
+      };
+      // Net profit is entered per person on the package, same as land price —
+      // so e.g. 3 adults × adult net profit is what actually got earned on
+      // this booking's adults, not the flat per-person figure on its own.
+      const adultNetProfit = parseAmount(pkg?.adultNetProfit || "");
+      const childNetProfit = parseAmount(pkg?.childNetProfit || "");
+      const infantNetProfit = parseAmount(pkg?.infantNetProfit || "");
+      existing.adult.count += adults;
+      existing.adult.land += parseAmount(b.adultLandPrice) * adults;
+      existing.adult.net += adultNetProfit * adults;
+      existing.child.count += children;
+      existing.child.land += parseAmount(b.childLandPrice) * children;
+      existing.child.net += childNetProfit * children;
+      existing.infant.count += infants;
+      existing.infant.land += parseAmount(b.infantLandPrice) * infants;
+      existing.infant.net += infantNetProfit * infants;
+      byPackage.set(key, existing);
     }
-    return Array.from(landByPackage.entries())
-      .map(([packageId, { title, land }]) => {
-        const netProfit = parseAmount(packageById.get(packageId)?.netProfit || "");
-        // Larger minus smaller (not always netProfit - land) — a package
-        // whose land cost exceeds its net profit no longer shows a negative
-        // "remaining", just the plain difference between the two.
-        const remaining = Math.max(netProfit, land) - Math.min(netProfit, land);
-        return { title, remaining };
+
+    const diff = (netProfit: number, land: number) => Math.max(netProfit, land) - Math.min(netProfit, land);
+
+    return Array.from(byPackage.entries())
+      .map(([, { title, adult, child, infant }]) => {
+        const adultAmount = diff(adult.net, adult.land);
+        const childAmount = diff(child.net, child.land);
+        const infantAmount = diff(infant.net, infant.land);
+        return {
+          title,
+          adult: { ...adult, amount: adultAmount },
+          child: { ...child, amount: childAmount },
+          infant: { ...infant, amount: infantAmount },
+          total: adultAmount + childAmount + infantAmount,
+        };
       })
-      .sort((a, b) => b.remaining - a.remaining);
+      .sort((a, b) => b.total - a.total);
   }
 
   const domesticNetRevenueByPackage = useMemo(
@@ -238,72 +280,28 @@ export default function OverviewPage() {
   );
 
   const domesticNetRevenueTotal = useMemo(
-    () => domesticNetRevenueByPackage.reduce((sum, p) => sum + p.remaining, 0),
+    () => domesticNetRevenueByPackage.reduce((sum, p) => sum + p.total, 0),
     [domesticNetRevenueByPackage]
   );
   const internationalNetRevenueTotal = useMemo(
-    () => internationalNetRevenueByPackage.reduce((sum, p) => sum + p.remaining, 0),
+    () => internationalNetRevenueByPackage.reduce((sum, p) => sum + p.total, 0),
     [internationalNetRevenueByPackage]
   );
 
-  // Land package = what's paid to the land vendor for a booking (internal
-  // cost, never shown on the client invoice). Net revenue here is the
-  // margin on that: full package price billed to the client minus that
-  // land-vendor cost — tracked separately for domestic vs. international
-  // since the two are priced and sourced independently.
-  const landPackageByType = useMemo(() => {
-    let domesticLand = 0;
-    let internationalLand = 0;
-    let domesticPackagePrice = 0;
-    let internationalPackagePrice = 0;
-    for (const b of bookings) {
-      const land = parseAmount(b.landPackage);
-      const packagePrice = computeInvoiceTotals(b).packagePrice;
-      if (b.packageType === "international") {
-        internationalLand += land;
-        internationalPackagePrice += packagePrice;
-      } else {
-        domesticLand += land;
-        domesticPackagePrice += packagePrice;
-      }
-    }
-    return {
-      domesticLand,
-      internationalLand,
-      domesticNetRevenue: domesticPackagePrice - domesticLand,
-      internationalNetRevenue: internationalPackagePrice - internationalLand,
-    };
-  }, [bookings]);
-
-  // Broken down per package title within each type — e.g. Thailand vs. Dubai
-  // under International — AND per land cost within that package. Grouping
-  // only by title used to lump every booking of a package into one bucket,
-  // so a later booking made after the land cost changed still got counted
-  // against the old figure. Keying on (title, landCost) instead means a
-  // price change starts its own row/bucket rather than merging into the
-  // previous one.
-  const landPackageByPackageName = useMemo(() => {
-    type Row = { title: string; landCost: number; bookingCount: number };
-    const domesticMap = new Map<string, Row>();
-    const internationalMap = new Map<string, Row>();
-    for (const b of bookings) {
-      const map = b.packageType === "international" ? internationalMap : domesticMap;
-      const title = (b.packageTitle || "Untitled package").trim();
-      const land = parseAmount(b.landPackage);
-      const key = `${title}::${land}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.bookingCount += 1;
-      } else {
-        map.set(key, { title, landCost: land, bookingCount: 1 });
-      }
-    }
-    const finalize = (m: Map<string, Row>) =>
-      Array.from(m.values())
-        .map((r) => ({ ...r, netRevenue: r.landCost * r.bookingCount }))
-        .sort((a, b) => a.title.localeCompare(b.title) || b.landCost - a.landCost);
-    return { domestic: finalize(domesticMap), international: finalize(internationalMap) };
-  }, [bookings]);
+  // "Land package cost" tiles = the Adult land price actually paid out
+  // (adultLandPrice × adult count, summed across all of a type's bookings —
+  // same figure already computed per-package in domestic/internationalNetRevenueByPackage's
+  // adult.land). "Net revenue (land)" tiles reuse that same section's total,
+  // so both pairs of tiles agree with the breakdown table above them instead
+  // of tracking a separate, legacy "Land package (Rs.)" flat field.
+  const domesticAdultLandTotal = useMemo(
+    () => domesticNetRevenueByPackage.reduce((sum, p) => sum + p.adult.land, 0),
+    [domesticNetRevenueByPackage]
+  );
+  const internationalAdultLandTotal = useMemo(
+    () => internationalNetRevenueByPackage.reduce((sum, p) => sum + p.adult.land, 0),
+    [internationalNetRevenueByPackage]
+  );
 
   const revenuePieData: PieDatum[] = useMemo(
     () => [
@@ -569,22 +567,36 @@ export default function OverviewPage() {
               ) : domesticNetRevenueByPackage.length === 0 ? (
                 <div className={styles.loading}>No domestic bookings yet.</div>
               ) : (
-                <table className={styles.miniTable}>
-                  <thead>
-                    <tr>
-                      <th>Package</th>
-                      <th>Remaining Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {domesticNetRevenueByPackage.map((p) => (
-                      <tr key={p.title}>
-                        <td>{p.title}</td>
-                        <td>₹ {p.remaining.toLocaleString("en-IN")}</td>
+                <div className={styles.tableScroll}>
+                  <table className={styles.miniTable}>
+                    <thead>
+                      <tr>
+                        <th>Package</th>
+                        <th>Adults</th>
+                        <th>Adult Amount</th>
+                        <th>Children</th>
+                        <th>Child Amount</th>
+                        <th>Infants</th>
+                        <th>Infant Amount</th>
+                        <th>Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {domesticNetRevenueByPackage.map((p) => (
+                        <tr key={p.title}>
+                          <td>{p.title}</td>
+                          <td>{p.adult.count}</td>
+                          <td>₹ {p.adult.amount.toLocaleString("en-IN")}</td>
+                          <td>{p.child.count}</td>
+                          <td>₹ {p.child.amount.toLocaleString("en-IN")}</td>
+                          <td>{p.infant.count}</td>
+                          <td>₹ {p.infant.amount.toLocaleString("en-IN")}</td>
+                          <td>₹ {p.total.toLocaleString("en-IN")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
 
@@ -600,22 +612,36 @@ export default function OverviewPage() {
               ) : internationalNetRevenueByPackage.length === 0 ? (
                 <div className={styles.loading}>No international bookings yet.</div>
               ) : (
-                <table className={styles.miniTable}>
-                  <thead>
-                    <tr>
-                      <th>Package</th>
-                      <th>Remaining Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {internationalNetRevenueByPackage.map((p) => (
-                      <tr key={p.title}>
-                        <td>{p.title}</td>
-                        <td>₹ {p.remaining.toLocaleString("en-IN")}</td>
+                <div className={styles.tableScroll}>
+                  <table className={styles.miniTable}>
+                    <thead>
+                      <tr>
+                        <th>Package</th>
+                        <th>Adults</th>
+                        <th>Adult Amount</th>
+                        <th>Children</th>
+                        <th>Child Amount</th>
+                        <th>Infants</th>
+                        <th>Infant Amount</th>
+                        <th>Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {internationalNetRevenueByPackage.map((p) => (
+                        <tr key={p.title}>
+                          <td>{p.title}</td>
+                          <td>{p.adult.count}</td>
+                          <td>₹ {p.adult.amount.toLocaleString("en-IN")}</td>
+                          <td>{p.child.count}</td>
+                          <td>₹ {p.child.amount.toLocaleString("en-IN")}</td>
+                          <td>{p.infant.count}</td>
+                          <td>₹ {p.infant.amount.toLocaleString("en-IN")}</td>
+                          <td>₹ {p.total.toLocaleString("en-IN")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
 
@@ -624,14 +650,14 @@ export default function OverviewPage() {
                 <div className={styles.k}>
                   <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic land package cost
                 </div>
-                <div className={styles.v}>₹ {landPackageByType.domesticLand.toLocaleString("en-IN")}</div>
+                <div className={styles.v}>₹ {domesticAdultLandTotal.toLocaleString("en-IN")}</div>
               </div>
               <div className={styles.card}>
                 <div className={styles.k}>
                   <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic net revenue (land)
                 </div>
                 <div className={styles.v}>
-                  ₹ {landPackageByType.domesticNetRevenue.toLocaleString("en-IN")}
+                  ₹ {domesticNetRevenueTotal.toLocaleString("en-IN")}
                 </div>
               </div>
               <div className={styles.card}>
@@ -639,7 +665,7 @@ export default function OverviewPage() {
                   <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International land package
                   cost
                 </div>
-                <div className={styles.v}>₹ {landPackageByType.internationalLand.toLocaleString("en-IN")}</div>
+                <div className={styles.v}>₹ {internationalAdultLandTotal.toLocaleString("en-IN")}</div>
               </div>
               <div className={styles.card}>
                 <div className={styles.k}>
@@ -647,71 +673,9 @@ export default function OverviewPage() {
                   (land)
                 </div>
                 <div className={styles.v}>
-                  ₹ {landPackageByType.internationalNetRevenue.toLocaleString("en-IN")}
+                  ₹ {internationalNetRevenueTotal.toLocaleString("en-IN")}
                 </div>
               </div>
-            </div>
-
-            <div className={styles.panelGrid}>
-              <section className={styles.panel}>
-                <h3>Domestic — land package by package</h3>
-                {!loaded ? (
-                  <div className={styles.loading}>Loading…</div>
-                ) : landPackageByPackageName.domestic.length === 0 ? (
-                  <div className={styles.loading}>No domestic bookings yet.</div>
-                ) : (
-                  <table className={styles.miniTable}>
-                    <thead>
-                      <tr>
-                        <th>Package</th>
-                        <th>Land cost</th>
-                        <th>Bookings</th>
-                        <th>Net revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {landPackageByPackageName.domestic.map((p) => (
-                        <tr key={`${p.title}::${p.landCost}`}>
-                          <td>{p.title}</td>
-                          <td>₹ {p.landCost.toLocaleString("en-IN")}</td>
-                          <td>{p.bookingCount}</td>
-                          <td>₹ {p.netRevenue.toLocaleString("en-IN")}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </section>
-
-              <section className={styles.panel}>
-                <h3>International — land package by package</h3>
-                {!loaded ? (
-                  <div className={styles.loading}>Loading…</div>
-                ) : landPackageByPackageName.international.length === 0 ? (
-                  <div className={styles.loading}>No international bookings yet.</div>
-                ) : (
-                  <table className={styles.miniTable}>
-                    <thead>
-                      <tr>
-                        <th>Package</th>
-                        <th>Land cost</th>
-                        <th>Bookings</th>
-                        <th>Net revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {landPackageByPackageName.international.map((p) => (
-                        <tr key={`${p.title}::${p.landCost}`}>
-                          <td>{p.title}</td>
-                          <td>₹ {p.landCost.toLocaleString("en-IN")}</td>
-                          <td>{p.bookingCount}</td>
-                          <td>₹ {p.netRevenue.toLocaleString("en-IN")}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </section>
             </div>
 
             <div className={styles.panelGrid}>

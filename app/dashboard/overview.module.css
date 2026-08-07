@@ -188,6 +188,10 @@
   padding: 10px 0;
 }
 
+.tableScroll {
+  overflow-x: auto;
+}
+
 .miniTable {
   width: 100%;
   border-collapse: collapse;

@@ -294,10 +294,49 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
   return html;
 }
 
+// Uploaded photos (poster/day images) are embedded straight into the
+// package document as base64 — an unresized upload from a phone camera can
+// easily be 3-8 MB, and that weight gets shipped on *every* package list
+// load, not just when viewing that one package (this is what took
+// GET /packages from ~160s down to ~40s after excluding day images from
+// that query, then most of the remaining weight turned out to be one 2.4 MB
+// poster). Capping the longest side at 1600px and re-encoding closes that
+// off at the source — PNG stays PNG (preserves transparency, e.g. a logo),
+// everything else re-encodes as JPEG at 0.82 quality, which is more than
+// enough for on-screen/PDF use and typically an order of magnitude smaller.
+const MAX_IMAGE_DIMENSION = 1600;
+const JPEG_QUALITY = 0.82;
+
 export function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = (e) => resolve((e.target?.result as string) || "");
+    reader.onload = (e) => {
+      const original = (e.target?.result as string) || "";
+      if (!original || !file.type.startsWith("image/")) {
+        resolve(original);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.width, img.height));
+        const width = Math.round(img.width * scale);
+        const height = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(original);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(
+          file.type === "image/png" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", JPEG_QUALITY)
+        );
+      };
+      img.onerror = () => resolve(original);
+      img.src = original;
+    };
     reader.onerror = () => resolve("");
     reader.readAsDataURL(file);
   });
