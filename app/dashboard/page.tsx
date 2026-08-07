@@ -60,9 +60,47 @@ export default function OverviewPage() {
     }
   }
 
+  // Fetches for any logged-in user now, not just admins — a regular user
+  // needs their own booking stats below. The backend already scopes
+  // GET /bookings to "mine" for non-admins, so `bookings` here is already
+  // exactly the right set for that section, no extra filtering needed.
   useEffect(() => {
-    if (isAdmin) load();
-  }, [isAdmin]);
+    if (user) load();
+  }, [user]);
+
+  // Non-admin "My bookings" stats — counts only, deliberately no revenue or
+  // net-profit figures here (those stay admin-only, see the isAdmin section
+  // below). `bookings` is already just this user's own bookings for a
+  // non-admin (see the backend note above), so no extra filtering needed.
+  const myBookingStats = useMemo(() => {
+    let domestic = 0;
+    let international = 0;
+    let withFlight = 0;
+    let withoutFlight = 0;
+    for (const b of bookings) {
+      if (b.packageType === "international") international += 1;
+      else domestic += 1;
+      if (parseAmount(b.flightAmount) > 0) withFlight += 1;
+      else withoutFlight += 1;
+    }
+    return { total: bookings.length, domestic, international, withFlight, withoutFlight };
+  }, [bookings]);
+
+  const myTypePieData: PieDatum[] = useMemo(
+    () => [
+      { id: "domestic", label: "Domestic", value: myBookingStats.domestic, color: "var(--chart-1)" },
+      { id: "international", label: "International", value: myBookingStats.international, color: "var(--chart-2)" },
+    ],
+    [myBookingStats]
+  );
+
+  const myFlightPieData: PieDatum[] = useMemo(
+    () => [
+      { id: "with-flight", label: "With flight", value: myBookingStats.withFlight, color: "var(--chart-3)" },
+      { id: "without-flight", label: "Without flight", value: myBookingStats.withoutFlight, color: "var(--chart-4)" },
+    ],
+    [myBookingStats]
+  );
 
   // "Revenue" here means money actually received — the sum of each
   // booking's advance payments (same figure as the "Advance Paid" column on
@@ -310,6 +348,63 @@ export default function OverviewPage() {
             </div>
           </div>
         </div>
+
+        {!isAdmin && (
+          <>
+            <div className={styles.cards}>
+              <div className={styles.card}>
+                <div className={styles.k}>Your bookings</div>
+                <div className={styles.v}>{myBookingStats.total}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic
+                </div>
+                <div className={styles.v}>{myBookingStats.domestic}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International
+                </div>
+                <div className={styles.v}>{myBookingStats.international}</div>
+              </div>
+            </div>
+
+            <div className={styles.cards}>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-3)" }} /> With flight
+                </div>
+                <div className={styles.v}>{myBookingStats.withFlight}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-4)" }} /> Without flight
+                </div>
+                <div className={styles.v}>{myBookingStats.withoutFlight}</div>
+              </div>
+            </div>
+
+            {myBookingStats.total > 0 && (
+              <div className={styles.panelGrid}>
+                <section className={styles.panel}>
+                  <h3>Domestic vs International</h3>
+                  {!loaded ? <div className={styles.loading}>Loading…</div> : <PieChart data={myTypePieData} />}
+                </section>
+                <section className={styles.panel}>
+                  <h3>With vs Without Flight</h3>
+                  {!loaded ? <div className={styles.loading}>Loading…</div> : <PieChart data={myFlightPieData} />}
+                </section>
+              </div>
+            )}
+
+            {loaded && myBookingStats.total === 0 && (
+              <div className={styles.panel}>
+                <div className={styles.loading}>No bookings yet.</div>
+              </div>
+            )}
+          </>
+        )}
 
         {isAdmin && (
           <>

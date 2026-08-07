@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
   try {
     for (const to of recipients) {
       await transporter.sendMail({
-        from: emailUser,
+        from: `"Ambaari Tours And Travels" <${emailUser}>`,
         to,
         subject,
         html,
