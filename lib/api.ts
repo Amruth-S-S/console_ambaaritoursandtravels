@@ -74,9 +74,12 @@ export type BookingData = {
   location: string;
   packageType: "domestic" | "international";
   packageId: string | null;
-  // Internal land-vendor cost for this booking — used for margin reporting
-  // on the admin Overview page, deliberately never sent to buildInvoiceHtml.
-  landPackage: string;
+  // Legacy flat land-vendor cost field — superseded by the per-category
+  // adult/child/infant land price fields below, which is what Overview's
+  // net revenue reporting actually uses now. No longer editable in the
+  // booking form; optional here purely so old callers building this object
+  // don't need to pass it.
+  landPackage?: string;
   travelDate: string;
   finalPaymentDate: string;
   adults: string;
@@ -208,6 +211,12 @@ export const api = {
   },
 
   listBookings: () => request<Booking[]>("/bookings"),
+  // Computed server-side against ALL bookings (not just what this account
+  // can see) so the sequence stays continuous and collision-free across
+  // every user — see the backend route for why a client-side computation
+  // isn't safe here.
+  getNextInvoiceNumber: () =>
+    request<{ invoiceNumber: string }>("/bookings/next-invoice-number"),
   createBooking: (body: BookingData) =>
     request<Booking>("/bookings", {
       method: "POST",

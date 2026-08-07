@@ -47,7 +47,6 @@ type FormState = {
   location: string;
   packageType: "domestic" | "international";
   packageId: string;
-  landPackage: string;
   travelDate: string;
   finalPaymentDate: string;
   adults: string;
@@ -79,7 +78,6 @@ const emptyForm: FormState = {
   location: "",
   packageType: "domestic",
   packageId: "",
-  landPackage: "",
   travelDate: "",
   finalPaymentDate: "",
   adults: "1",
@@ -127,6 +125,7 @@ export default function BookingsPage() {
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  const createRequestId = useRef(0);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -156,18 +155,44 @@ export default function BookingsPage() {
     if (user) load();
   }, [user]);
 
+  // A search term also matches against the travel date — typed as
+  // 2026-08-07, 07-08-2026, 07/08/2026, "august", "aug", or just "2026" —
+  // so typing a date or month finds who's travelling then (or was invoiced
+  // then — both dates are checked, since either is a reasonable thing to
+  // search by), not just who a client is. When a term is entered, results
+  // are additionally sorted by travel date (soonest first) so a date/month
+  // search reads as a travel schedule rather than in whatever order
+  // bookings were created.
+  function dateSearchText(isoDate: string): string {
+    if (!isoDate) return "";
+    const d = new Date(`${isoDate}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return isoDate.toLowerCase();
+    const [y, m, day] = isoDate.split("-");
+    const monthName = d.toLocaleString("en-US", { month: "long" });
+    const monthShort = d.toLocaleString("en-US", { month: "short" });
+    return [isoDate, `${day}-${m}-${y}`, `${day}/${m}/${y}`, monthName, monthShort, y]
+      .join(" ")
+      .toLowerCase();
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return bookings.filter((b) => {
+    const matches = bookings.filter((b) => {
       if (typeTab !== "all" && b.packageType !== typeTab) return false;
       if (!q) return true;
       return (
         b.clientName.toLowerCase().includes(q) ||
         b.clientPhone.toLowerCase().includes(q) ||
         b.packageTitle.toLowerCase().includes(q) ||
-        b.userName.toLowerCase().includes(q)
+        b.userName.toLowerCase().includes(q) ||
+        dateSearchText(b.travelDate).includes(q) ||
+        dateSearchText(b.invoiceDate).includes(q)
       );
     });
+    if (!q) return matches;
+    return [...matches].sort((a, b) =>
+      (a.travelDate || "9999-99-99").localeCompare(b.travelDate || "9999-99-99")
+    );
   }, [bookings, search, typeTab]);
 
   // Search/tab changes can shrink the result set out from under whatever
@@ -183,7 +208,12 @@ export default function BookingsPage() {
     [filtered, currentPage]
   );
 
-  function nextInvoiceNumber(): string {
+  // Fallback only — used if the server-side next-invoice-number call fails.
+  // Derived from `bookings`, which for a non-admin is already filtered down
+  // to just their own bookings, so this alone would hand out numbers that
+  // collide with other users' invoices; the real source of truth is
+  // api.getNextInvoiceNumber() in openCreate below.
+  function fallbackNextInvoiceNumber(): string {
     const nums = bookings
       .map((b) => parseInt(b.invoiceNumber, 10))
       .filter((n) => !Number.isNaN(n));
@@ -208,19 +238,34 @@ export default function BookingsPage() {
     [form.adults, form.children, form.adultPrice, form.childPrice, form.advancePayments]
   );
 
-  function openCreate() {
+  async function openCreate() {
+    // Guards the async correction below against a stale response landing
+    // after the user has already closed this modal, reopened it, or
+    // switched to editing something else.
+    const requestId = ++createRequestId.current;
     setMode("create");
     setEditingId(null);
     setForm({
       ...emptyForm,
       userId: isAdmin ? "" : user?.id || "",
-      invoiceNumber: nextInvoiceNumber(),
+      invoiceNumber: fallbackNextInvoiceNumber(),
       invoiceDate: todayIso(),
     });
     setNewPayment({ amount: "", date: todayIso(), note: "" });
     setFormErr("");
     setQrDataUrl(null);
     setModalOpen(true);
+    // Replace the fallback guess with the real, business-wide next number
+    // once it arrives — modal's already open with something reasonable in
+    // the field either way, this just corrects it a beat later.
+    try {
+      const { invoiceNumber } = await api.getNextInvoiceNumber();
+      if (createRequestId.current === requestId) {
+        setForm((f) => ({ ...f, invoiceNumber }));
+      }
+    } catch {
+      // Fallback number stays — better than blocking booking creation.
+    }
   }
 
   function openEdit(b: Booking) {
@@ -234,7 +279,6 @@ export default function BookingsPage() {
       location: b.location,
       packageType: b.packageType,
       packageId: b.packageId || "",
-      landPackage: b.landPackage || "",
       travelDate: b.travelDate,
       finalPaymentDate: b.finalPaymentDate,
       adults: b.adults,
@@ -364,7 +408,6 @@ export default function BookingsPage() {
         location: form.location.trim(),
         packageType: form.packageType,
         packageId: form.packageId || null,
-        landPackage: form.landPackage.trim(),
         travelDate: form.travelDate,
         finalPaymentDate: form.finalPaymentDate,
         adults: form.adults.trim() || "1",
@@ -446,7 +489,7 @@ export default function BookingsPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by client, phone or package…"
+                  placeholder="Search by client, phone, package, date or month…"
                 />
               </div>
               <button className={styles.createBtn} onClick={openCreate}>
@@ -495,9 +538,12 @@ export default function BookingsPage() {
                 <tr>
                   <th>Invoice No</th>
                   <th>Date</th>
+                  <th>Travel Date</th>
                   <th>Client</th>
                   <th>Phone</th>
                   <th>Package</th>
+                  <th>Adults</th>
+                  <th>Children</th>
                   <th>Package Amount</th>
                   <th>Advance Paid</th>
                   <th>Balance Due</th>
@@ -512,6 +558,7 @@ export default function BookingsPage() {
                   <tr key={b.id}>
                     <td style={{ color: "var(--ink-dim)" }}>{b.invoiceNumber || "—"}</td>
                     <td style={{ color: "var(--ink-dim)" }}>{b.invoiceDate || "—"}</td>
+                    <td style={{ color: "var(--ink-dim)" }}>{b.travelDate || "—"}</td>
                     <td>
                       <div className={styles.bName}>
                         <span className={styles.bAvatar}>
@@ -522,6 +569,8 @@ export default function BookingsPage() {
                     </td>
                     <td style={{ color: "var(--ink-dim)" }}>{b.clientPhone}</td>
                     <td style={{ color: "var(--ink-dim)" }}>{b.packageTitle || "—"}</td>
+                    <td style={{ color: "var(--ink-dim)" }}>{b.adults || "0"}</td>
+                    <td style={{ color: "var(--ink-dim)" }}>{b.children || "0"}</td>
                     <td className={styles.amount}>₹ {t.packagePrice.toLocaleString("en-IN")}</td>
                     <td className={styles.amount}>₹ {t.totalAdvance.toLocaleString("en-IN")}</td>
                     <td className={styles.amount}>₹ {t.balanceDue.toLocaleString("en-IN")}</td>
@@ -659,7 +708,7 @@ export default function BookingsPage() {
         </div>
 
         <div className={styles.sectionLabel}>Package details</div>
-        <div className={styles.row3}>
+        <div className={styles.row}>
           <div className={styles.field}>
             <label htmlFor="b-package-type">Package type</label>
             <select
@@ -692,15 +741,6 @@ export default function BookingsPage() {
                 </option>
               ))}
             </select>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="b-land-package">Land package (Rs.)</label>
-            <input
-              id="b-land-package"
-              value={form.landPackage}
-              placeholder="e.g. 30000"
-              onChange={(e) => setForm({ ...form, landPackage: e.target.value })}
-            />
           </div>
         </div>
         <div className={styles.row3}>
