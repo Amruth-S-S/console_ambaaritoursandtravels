@@ -68,23 +68,70 @@ export default function OverviewPage() {
     if (user) load();
   }, [user]);
 
-  // Non-admin "My bookings" stats — counts only, deliberately no revenue or
-  // net-profit figures here (those stay admin-only, see the isAdmin section
-  // below). `bookings` is already just this user's own bookings for a
-  // non-admin (see the backend note above), so no extra filtering needed.
+  // Non-admin "My bookings" stats — counts plus the plain package amount
+  // each booking was made for (adultPrice*adults + childPrice*children —
+  // the figure this user typed in themselves when creating the booking).
+  // Deliberately no net-profit or land-cost figures here — those stay
+  // admin-only, see the isAdmin section below. `bookings` is already just
+  // this user's own bookings for a non-admin (see the backend note above),
+  // so no extra filtering needed.
   const myBookingStats = useMemo(() => {
     let domestic = 0;
     let international = 0;
     let withFlight = 0;
     let withoutFlight = 0;
+    let domesticAmount = 0;
+    let internationalAmount = 0;
     for (const b of bookings) {
-      if (b.packageType === "international") international += 1;
-      else domestic += 1;
+      const amount = computeInvoiceTotals(b).packagePrice;
+      if (b.packageType === "international") {
+        international += 1;
+        internationalAmount += amount;
+      } else {
+        domestic += 1;
+        domesticAmount += amount;
+      }
       if (parseAmount(b.flightAmount) > 0) withFlight += 1;
       else withoutFlight += 1;
     }
-    return { total: bookings.length, domestic, international, withFlight, withoutFlight };
+    return {
+      total: bookings.length,
+      domestic,
+      international,
+      withFlight,
+      withoutFlight,
+      domesticAmount,
+      internationalAmount,
+      totalAmount: domesticAmount + internationalAmount,
+    };
   }, [bookings]);
+
+  // Per-package amount breakdown — one row per package (not per booking),
+  // same grouping approach as the admin net-revenue tables below.
+  function myAmountByPackage(type: "domestic" | "international") {
+    const byPackage = new Map<string, { title: string; amount: number }>();
+    for (const b of bookings) {
+      if (b.packageType !== type) continue;
+      const title = (b.packageTitle || "Untitled package").trim();
+      const key = b.packageId || title;
+      const amount = computeInvoiceTotals(b).packagePrice;
+      const existing = byPackage.get(key);
+      if (existing) existing.amount += amount;
+      else byPackage.set(key, { title, amount });
+    }
+    return Array.from(byPackage.values()).sort((a, b) => b.amount - a.amount);
+  }
+
+  const myDomesticAmountByPackage = useMemo(
+    () => myAmountByPackage("domestic"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings]
+  );
+  const myInternationalAmountByPackage = useMemo(
+    () => myAmountByPackage("international"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings]
+  );
 
   const myTypePieData: PieDatum[] = useMemo(
     () => [
@@ -368,6 +415,10 @@ export default function OverviewPage() {
                 </div>
                 <div className={styles.v}>{myBookingStats.international}</div>
               </div>
+              <div className={styles.card}>
+                <div className={styles.k}>Total amount</div>
+                <div className={styles.v}>₹ {myBookingStats.totalAmount.toLocaleString("en-IN")}</div>
+              </div>
             </div>
 
             <div className={styles.cards}>
@@ -383,7 +434,73 @@ export default function OverviewPage() {
                 </div>
                 <div className={styles.v}>{myBookingStats.withoutFlight}</div>
               </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-1)" }} /> Domestic amount
+                </div>
+                <div className={styles.v}>₹ {myBookingStats.domesticAmount.toLocaleString("en-IN")}</div>
+              </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International amount
+                </div>
+                <div className={styles.v}>₹ {myBookingStats.internationalAmount.toLocaleString("en-IN")}</div>
+              </div>
             </div>
+
+            {myBookingStats.domestic > 0 && (
+              <section className={styles.panel}>
+                <div className={styles.panelHead}>
+                  <h3>Domestic — Package Amounts</h3>
+                  <span className={styles.panelTotal}>
+                    ₹ {myBookingStats.domesticAmount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <table className={styles.miniTable}>
+                  <thead>
+                    <tr>
+                      <th>Package</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myDomesticAmountByPackage.map((p) => (
+                      <tr key={p.title}>
+                        <td>{p.title}</td>
+                        <td>₹ {p.amount.toLocaleString("en-IN")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
+
+            {myBookingStats.international > 0 && (
+              <section className={styles.panel}>
+                <div className={styles.panelHead}>
+                  <h3>International — Package Amounts</h3>
+                  <span className={styles.panelTotal}>
+                    ₹ {myBookingStats.internationalAmount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <table className={styles.miniTable}>
+                  <thead>
+                    <tr>
+                      <th>Package</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myInternationalAmountByPackage.map((p) => (
+                      <tr key={p.title}>
+                        <td>{p.title}</td>
+                        <td>₹ {p.amount.toLocaleString("en-IN")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
 
             {myBookingStats.total > 0 && (
               <div className={styles.panelGrid}>
