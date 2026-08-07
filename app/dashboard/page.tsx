@@ -130,10 +130,14 @@ export default function OverviewPage() {
       else landByPackage.set(key, { title, land });
     }
     return Array.from(landByPackage.entries())
-      .map(([packageId, { title, land }]) => ({
-        title,
-        remaining: parseAmount(packageById.get(packageId)?.netProfit || "") - land,
-      }))
+      .map(([packageId, { title, land }]) => {
+        const netProfit = parseAmount(packageById.get(packageId)?.netProfit || "");
+        // Larger minus smaller (not always netProfit - land) — a package
+        // whose land cost exceeds its net profit no longer shows a negative
+        // "remaining", just the plain difference between the two.
+        const remaining = Math.max(netProfit, land) - Math.min(netProfit, land);
+        return { title, remaining };
+      })
       .sort((a, b) => b.remaining - a.remaining);
   }
 
