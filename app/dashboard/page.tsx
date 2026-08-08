@@ -159,20 +159,40 @@ export default function OverviewPage() {
     [bookings]
   );
 
-  const perUser: BarDatum[] = useMemo(() => {
-    const map = new Map<string, BarDatum>();
+  // packageAmount/packageNames ride along on the same per-user rows as the
+  // chart's count/amount (advance paid) — extra fields BarDatum doesn't
+  // declare, but the bar chart only reads id/label/count/amount so this is
+  // safe to share between both the chart and the "User booking details"
+  // table below instead of computing the same grouping twice.
+  type PerUserRow = BarDatum & { packageAmount: number; packageNames: string };
+  const perUser: PerUserRow[] = useMemo(() => {
+    const map = new Map<string, PerUserRow & { packageTitles: Set<string> }>();
     for (const b of bookings) {
       const key = b.userId || "unknown";
       const amount = computeInvoiceTotals(b).totalAdvance;
+      const packageAmount = computeInvoiceTotals(b).packagePrice;
+      const title = (b.packageTitle || "Untitled package").trim();
       const existing = map.get(key);
       if (existing) {
         existing.count += 1;
         existing.amount += amount;
+        existing.packageAmount += packageAmount;
+        existing.packageTitles.add(title);
       } else {
-        map.set(key, { id: key, label: b.userName || "Unknown", count: 1, amount });
+        map.set(key, {
+          id: key,
+          label: b.userName || "Unknown",
+          count: 1,
+          amount,
+          packageAmount,
+          packageNames: "",
+          packageTitles: new Set([title]),
+        });
       }
     }
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+    return Array.from(map.values())
+      .map(({ packageTitles, ...row }) => ({ ...row, packageNames: Array.from(packageTitles).join(", ") }))
+      .sort((a, b) => b.count - a.count);
   }, [bookings]);
 
   const byType = useMemo(() => {
@@ -288,19 +308,36 @@ export default function OverviewPage() {
     [internationalNetRevenueByPackage]
   );
 
-  // "Land package cost" tiles = the Adult land price actually paid out
-  // (adultLandPrice × adult count, summed across all of a type's bookings —
-  // same figure already computed per-package in domestic/internationalNetRevenueByPackage's
-  // adult.land). "Net revenue (land)" tiles reuse that same section's total,
-  // so both pairs of tiles agree with the breakdown table above them instead
-  // of tracking a separate, legacy "Land package (Rs.)" flat field.
+  // "Land package cost" tiles = land price actually paid out (categoryLandPrice
+  // × category count, summed across all of a type's bookings — same figures
+  // already computed per-package in domestic/internationalNetRevenueByPackage's
+  // adult/child/infant.land). "Net revenue (land)" tiles reuse that same
+  // section's total, so both pairs of tiles agree with the breakdown table
+  // above them instead of tracking a separate, legacy "Land package (Rs.)"
+  // flat field. Domestic stays Adult-only; International rolls in Child and
+  // Infant land price too, per explicit request.
   const domesticAdultLandTotal = useMemo(
     () => domesticNetRevenueByPackage.reduce((sum, p) => sum + p.adult.land, 0),
     [domesticNetRevenueByPackage]
   );
-  const internationalAdultLandTotal = useMemo(
-    () => internationalNetRevenueByPackage.reduce((sum, p) => sum + p.adult.land, 0),
+  const internationalLandTotal = useMemo(
+    () =>
+      internationalNetRevenueByPackage.reduce(
+        (sum, p) => sum + p.adult.land + p.child.land + p.infant.land,
+        0
+      ),
     [internationalNetRevenueByPackage]
+  );
+
+  // "With Flight Total Cost" — the same Package price × pax figure shown in
+  // the booking form's summary box (computeInvoiceTotals().packagePrice).
+  // Flight amount is NOT added on top here — per-adult/child price already
+  // has the flight cost folded into it, so adding flightAmount separately
+  // would double-count it. One combined total across every booking admin
+  // can see (domestic + international together).
+  const totalWithFlightCost = useMemo(
+    () => bookings.reduce((sum, b) => sum + computeInvoiceTotals(b).packagePrice, 0),
+    [bookings]
   );
 
   const revenuePieData: PieDatum[] = useMemo(
@@ -665,7 +702,7 @@ export default function OverviewPage() {
                   <span className={styles.dot} style={{ background: "var(--chart-2)" }} /> International land package
                   cost
                 </div>
-                <div className={styles.v}>₹ {internationalAdultLandTotal.toLocaleString("en-IN")}</div>
+                <div className={styles.v}>₹ {internationalLandTotal.toLocaleString("en-IN")}</div>
               </div>
               <div className={styles.card}>
                 <div className={styles.k}>
@@ -676,9 +713,15 @@ export default function OverviewPage() {
                   ₹ {internationalNetRevenueTotal.toLocaleString("en-IN")}
                 </div>
               </div>
+              <div className={styles.card}>
+                <div className={styles.k}>
+                  <span className={styles.dot} style={{ background: "var(--chart-3)" }} /> With flight total cost
+                </div>
+                <div className={styles.v}>₹ {totalWithFlightCost.toLocaleString("en-IN")}</div>
+              </div>
             </div>
 
-            <div className={styles.panelGrid}>
+            <div className={`${styles.panelGrid} ${styles.panelGridWide}`}>
               <section className={styles.panel}>
                 <h3>Bookings per user</h3>
                 {!loaded ? (
@@ -695,24 +738,30 @@ export default function OverviewPage() {
                 ) : perUser.length === 0 ? (
                   <div className={styles.loading}>No bookings yet.</div>
                 ) : (
-                  <table className={styles.miniTable}>
-                    <thead>
-                      <tr>
-                        <th>User</th>
-                        <th>Bookings</th>
-                        <th>Advance Paid</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {perUser.map((u) => (
-                        <tr key={u.id}>
-                          <td>{u.label}</td>
-                          <td>{u.count}</td>
-                          <td>₹ {u.amount.toLocaleString("en-IN")}</td>
+                  <div className={styles.tableScroll}>
+                    <table className={styles.miniTable}>
+                      <thead>
+                        <tr>
+                          <th>User</th>
+                          <th>Bookings</th>
+                          <th>Package Name</th>
+                          <th>Total Package Amount</th>
+                          <th>Advance Paid</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {perUser.map((u) => (
+                          <tr key={u.id}>
+                            <td>{u.label}</td>
+                            <td>{u.count}</td>
+                            <td>{u.packageNames || "—"}</td>
+                            <td>₹ {u.packageAmount.toLocaleString("en-IN")}</td>
+                            <td>₹ {u.amount.toLocaleString("en-IN")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </section>
             </div>

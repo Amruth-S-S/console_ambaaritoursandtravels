@@ -140,6 +140,20 @@
   }
 }
 
+/* User booking details has 5 columns of real text (package names in
+   particular) — the default 1.2fr/1fr split it shares with every other
+   panelGrid row left it too cramped, wrapping headers and names onto
+   multiple lines. This variant only widens that one row. */
+.panelGridWide {
+  grid-template-columns: 0.7fr 1.5fr;
+}
+
+@media (max-width: 900px) {
+  .panelGridWide {
+    grid-template-columns: 1fr;
+  }
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
