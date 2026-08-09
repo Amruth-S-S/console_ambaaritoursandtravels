@@ -195,6 +195,14 @@ export default function OverviewPage() {
       .sort((a, b) => b.count - a.count);
   }, [bookings]);
 
+  // "User booking details" table ranks by total package amount (highest
+  // spender first) — a different order than the bar chart above it, which
+  // stays ranked by booking count. Same rows, sorted independently for each.
+  const perUserByPackageAmount: PerUserRow[] = useMemo(
+    () => [...perUser].sort((a, b) => b.packageAmount - a.packageAmount),
+    [perUser]
+  );
+
   const byType = useMemo(() => {
     let domestic = 0;
     let international = 0;
@@ -750,7 +758,7 @@ export default function OverviewPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {perUser.map((u) => (
+                        {perUserByPackageAmount.map((u) => (
                           <tr key={u.id}>
                             <td>{u.label}</td>
                             <td>{u.count}</td>
