@@ -106,6 +106,7 @@ export type Booking = BookingData & {
   id: string;
   createdAt: string;
   userName: string;
+  userEmail: string;
   packageTitle: string;
 };
 

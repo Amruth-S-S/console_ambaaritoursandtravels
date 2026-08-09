@@ -573,7 +573,12 @@ export default function BookingsPage() {
                     <td style={{ color: "var(--ink-dim)" }}>{b.children || "0"}</td>
                     <td className={styles.amount}>₹ {t.packagePrice.toLocaleString("en-IN")}</td>
                     <td className={styles.amount}>₹ {t.totalAdvance.toLocaleString("en-IN")}</td>
-                    <td className={styles.amount}>₹ {t.balanceDue.toLocaleString("en-IN")}</td>
+                    <td className={styles.amount}>
+                      ₹ {t.balanceDue.toLocaleString("en-IN")}
+                      <span className={styles.subDate}>
+                        Due by {b.finalPaymentDate || "—"}
+                      </span>
+                    </td>
                     {isAdmin && (
                       <td>
                         <span className={styles.userPill}>{b.userName || "—"}</span>

@@ -190,6 +190,14 @@
   color: var(--ink);
 }
 
+.subDate {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+
 .userPill {
   font-size: 12px;
   padding: 3px 10px;

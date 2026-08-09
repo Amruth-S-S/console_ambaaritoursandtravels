@@ -11,27 +11,30 @@ const API =
     ? "https://console-backend-two.vercel.app"
     : "http://localhost:8000");
 
+type AdvancePayment = { amount: string; date: string; note: string };
+
 type BookingOut = {
   id: string;
   clientName: string;
   clientEmail: string;
+  userEmail: string;
   packageTitle: string;
   invoiceNumber: string;
   invoiceDate: string;
   travelDate: string;
   amount: string;
+  advancePayments: AdvancePayment[];
 };
+
+function totalAdvancePaid(payments: AdvancePayment[] | undefined): number {
+  return (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+}
 
 function formatDate(iso: string): string {
   if (!iso) return "—";
   const d = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-}
-
-function formatRupees(amount: string): string {
-  const n = Number(amount);
-  return Number.isFinite(n) ? n.toLocaleString("en-IN") : amount || "0";
 }
 
 const EMAIL_SUBJECT = "✅ Booking Confirmed – Your Ambaari Tours & Travels Journey Awaits!";
@@ -58,7 +61,7 @@ function invoiceEmailHtml(b: BookingOut): string {
         ${detailRow("Invoice Number", b.invoiceNumber || "—")}
         ${detailRow("Invoice Date", formatDate(b.invoiceDate))}
         ${detailRow("Travel Date", formatDate(b.travelDate))}
-        ${detailRow("Amount Received", `&#8377;${formatRupees(b.amount)}`)}
+        ${detailRow("Total Advance Paid", `&#8377;${totalAdvancePaid(b.advancePayments).toLocaleString("en-IN")}`)}
       </table>
       <p>Your invoice has been attached to this email for your reference.</p>
 
@@ -124,8 +127,16 @@ export async function POST(request: NextRequest) {
   }
   const booking = (await backendRes.json()) as BookingOut;
 
+  // Client + company inbox + whichever staff account this booking is
+  // assigned to (the "User" dropdown in the booking form) — same email to
+  // all three. The Set dedupes in case the assigned user's email happens to
+  // match the company inbox.
   const recipients = Array.from(
-    new Set([booking.clientEmail?.trim(), companyEmail].filter((v): v is string => Boolean(v)))
+    new Set(
+      [booking.clientEmail?.trim(), companyEmail, booking.userEmail?.trim()].filter((v): v is string =>
+        Boolean(v)
+      )
+    )
   );
   if (recipients.length === 0) {
     return NextResponse.json({ detail: "No recipient email available" }, { status: 400 });
