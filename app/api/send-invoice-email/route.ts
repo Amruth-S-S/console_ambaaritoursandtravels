@@ -23,11 +23,27 @@ type BookingOut = {
   invoiceDate: string;
   travelDate: string;
   amount: string;
+  adults: string;
+  children: string;
+  adultPrice: string;
+  childPrice: string;
   advancePayments: AdvancePayment[];
 };
 
 function totalAdvancePaid(payments: AdvancePayment[] | undefined): number {
   return (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+}
+
+// Same formula as computeInvoiceTotals().packagePrice in lib/invoice.ts,
+// reimplemented locally rather than imported — that module pulls in
+// itinerary.ts's browser-only PDF/canvas code, which isn't safe to load in
+// this Node serverless function.
+function packagePriceTotal(b: Pick<BookingOut, "adults" | "children" | "adultPrice" | "childPrice">): number {
+  const adults = Number(b.adults) || 0;
+  const children = Number(b.children) || 0;
+  const adultPrice = Number(b.adultPrice) || 0;
+  const childPrice = Number(b.childPrice) || 0;
+  return adults * adultPrice + children * childPrice;
 }
 
 function formatDate(iso: string): string {
@@ -61,6 +77,7 @@ function invoiceEmailHtml(b: BookingOut): string {
         ${detailRow("Invoice Number", b.invoiceNumber || "—")}
         ${detailRow("Invoice Date", formatDate(b.invoiceDate))}
         ${detailRow("Travel Date", formatDate(b.travelDate))}
+        ${detailRow("Package Price × Pax", `&#8377;${packagePriceTotal(b).toLocaleString("en-IN")}`)}
         ${detailRow("Total Advance Paid", `&#8377;${totalAdvancePaid(b.advancePayments).toLocaleString("en-IN")}`)}
       </table>
       <p>Your invoice has been attached to this email for your reference.</p>
@@ -81,7 +98,7 @@ function invoiceEmailHtml(b: BookingOut): string {
       <p style="margin-top:24px;">
         Warm Regards,<br>
         <b>Ambaari Tours and Travels</b><br>
-        &#128222; +91 80730 97430<br>
+        &#128222; +91 96866 26428<br>
         &#128231; ambaaritoursandtravels09@gmail.com<br>
         &#127760; www.ambaaritoursandtravels.com
       </p>
