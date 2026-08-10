@@ -64,6 +64,7 @@ type FormState = {
   invoiceDate: string;
   amount: string;
   transactionId: string;
+  specialRequirements: string;
 };
 
 function todayIso(): string {
@@ -95,6 +96,7 @@ const emptyForm: FormState = {
   invoiceDate: "",
   amount: "",
   transactionId: "",
+  specialRequirements: "",
 };
 
 const emptyPayment: AdvancePayment = { amount: "", date: "", note: "" };
@@ -296,6 +298,7 @@ export default function BookingsPage() {
       invoiceDate: b.invoiceDate,
       amount: b.amount,
       transactionId: b.transactionId,
+      specialRequirements: b.specialRequirements || "",
     });
     setNewPayment({ amount: "", date: todayIso(), note: "" });
     setFormErr("");
@@ -357,6 +360,7 @@ export default function BookingsPage() {
       advancePayments: form.advancePayments,
       invoiceNumber: form.invoiceNumber,
       invoiceDate: form.invoiceDate,
+      specialRequirements: form.specialRequirements.trim(),
     };
   }
 
@@ -425,6 +429,7 @@ export default function BookingsPage() {
         invoiceDate: form.invoiceDate,
         amount: form.amount.trim(),
         transactionId: form.transactionId.trim(),
+        specialRequirements: form.specialRequirements.trim(),
       };
       if (mode === "create") {
         const created = await api.createBooking(body);
@@ -709,6 +714,16 @@ export default function BookingsPage() {
             value={form.location}
             placeholder="e.g. Bengaluru"
             onChange={(e) => setForm({ ...form, location: e.target.value })}
+          />
+        </div>
+        <div className={styles.field}>
+          <label htmlFor="b-special-requirements">Special requirements (optional)</label>
+          <textarea
+            id="b-special-requirements"
+            rows={3}
+            value={form.specialRequirements}
+            placeholder="e.g. Vegetarian meals, wheelchair access, early check-in…"
+            onChange={(e) => setForm({ ...form, specialRequirements: e.target.value })}
           />
         </div>
 

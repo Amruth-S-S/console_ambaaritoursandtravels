@@ -100,6 +100,9 @@ export type BookingData = {
   invoiceDate: string;
   amount: string;
   transactionId: string;
+  // Free-text notes from the client — shown on page 2 of the invoice
+  // alongside the hardcoded terms & conditions.
+  specialRequirements?: string;
 };
 
 export type Booking = BookingData & {

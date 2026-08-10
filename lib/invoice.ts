@@ -22,6 +22,8 @@ export type InvoiceInput = {
   advancePayments: AdvancePayment[];
   invoiceNumber: string;
   invoiceDate: string;
+  // Shown on page 2, above the hardcoded terms & conditions.
+  specialRequirements?: string;
 };
 
 function money(n: number): string {
@@ -177,6 +179,197 @@ function buildInvoiceHtml(input: InvoiceInput, qrDataUrl: string): string {
   </div>`;
 }
 
+// ---------- Page 2: Special Requirements + hardcoded Terms & Conditions ----------
+// A fixed block of legal copy, the same on every invoice regardless of
+// packageType — this is the company's one printed terms document (it
+// covers domestic and international together), not something derived from
+// a specific package's own Cancellation Policy/Terms rich-text fields.
+
+type TermsBlock = { p: string } | { list: string[] };
+type TermsSection = { number: string; title: string; blocks: TermsBlock[] };
+
+const TERMS_INTRO =
+  "Ambaari Tours and Travels offers both domestic and international tour packages, each governed by their own terms below — please read the section that applies to your booking. By confirming a booking with us, you agree to the relevant terms and conditions, including our cancellation and refund policy.";
+
+// Fixed contact details for the printed terms document — deliberately
+// independent of the COMPANY_EMAIL/COMPANY_PHONE used elsewhere on the
+// invoice itself, in case those two ever diverge.
+const COMPANY_EMAIL_TERMS = "ambaaritoursandtravels19@gmail.com";
+const COMPANY_PHONE_TERMS = "+91 96866 26428";
+
+const DOMESTIC_TERMS: TermsSection[] = [
+  {
+    number: "01",
+    title: "Tour Operation & Responsibility",
+    blocks: [
+      { p: "Ambaari Tours and Travels acts only as an agent for hotels, transport operators, railways, and other independent service providers for domestic tours." },
+      { p: "We are not responsible for delays, cancellations, or rescheduling of trains, flights, or buses, or for changes in itinerary due to weather, technical reasons, natural disasters, political disturbances, road blockages, or other unforeseen circumstances beyond our control." },
+    ],
+  },
+  {
+    number: "02",
+    title: "Travel Insurance (Recommended)",
+    blocks: [
+      { p: "Travelers are strongly recommended to have valid travel insurance covering medical emergencies, trip cancellations, baggage loss, etc." },
+      { p: "In the absence of travel insurance, Ambaari Tours and Travels will not be responsible for any financial loss, injury, damage, or inconvenience during travel." },
+    ],
+  },
+  {
+    number: "03",
+    title: "Identification & Travel Documents",
+    blocks: [
+      { p: "Travelers must carry a valid government-issued photo ID (Aadhar Card, PAN Card, Voter ID, or Passport) as required for hotel check-ins and travel bookings." },
+      { p: "Any delay or denial of service due to incomplete, incorrect, or invalid identification is entirely the responsibility of the customer." },
+    ],
+  },
+  {
+    number: "04",
+    title: "Force Majeure / Unforeseen Events",
+    blocks: [
+      { p: "Ambaari Tours and Travels shall not be liable for compensation, refund, or claim for changes in itinerary or unutilized services resulting from force majeure events, including weather disruptions, strikes, natural calamities, pandemics, road or rail disruptions, or government restrictions." },
+    ],
+  },
+  {
+    number: "05",
+    title: "Package Pricing",
+    blocks: [
+      { p: "Package cost is based on current rates and taxes at the time of booking." },
+      { p: "Any increase in taxes, fuel surcharge, toll charges, or transport fares after booking shall be payable by the customer." },
+    ],
+  },
+  {
+    number: "06",
+    title: "Cancellation & Refund Policy",
+    blocks: [
+      { p: "All cancellations must be made in writing." },
+      {
+        list: [
+          "Cancellations made 30+ days before departure: refund of the advance minus a 10% processing fee",
+          "Cancellations made 15–29 days before departure: 50% cancellation charge",
+          "Cancellations made within 14 days of departure: non-refundable",
+        ],
+      },
+      { p: "Additional cancellation charges imposed by hotels, transport operators, or other service providers will apply as per their own policies. No refund will be provided for partially used services." },
+    ],
+  },
+  {
+    number: "07",
+    title: "Customer Declaration",
+    blocks: [
+      { p: "I/We have read, understood, and agree to abide by the above terms and conditions. I/We acknowledge that Ambaari Tours and Travels is acting as a facilitator/agent and is not responsible for circumstances beyond its control." },
+    ],
+  },
+];
+
+const INTERNATIONAL_TERMS: TermsSection[] = [
+  {
+    number: "01",
+    title: "Tour Operation & Responsibility",
+    blocks: [
+      { p: "Ambaari Tours and Travels acts only as an agent for airlines, hotels, transport operators, and other independent service providers." },
+      { p: "We are not responsible for flight delays, cancellations, rescheduling, or changes in itinerary due to weather, technical reasons, natural disasters, political disturbances, or other unforeseen circumstances beyond our control." },
+    ],
+  },
+  {
+    number: "02",
+    title: "Travel Insurance (Mandatory)",
+    blocks: [
+      { p: "All travelers must have valid travel insurance covering medical emergencies, trip cancellations, baggage loss, etc." },
+      { p: "In the absence of travel insurance, Ambaari Tours and Travels will not be responsible for any financial loss, injury, damage, or inconvenience during travel." },
+    ],
+  },
+  {
+    number: "03",
+    title: "Passport, Visa & Immigration",
+    blocks: [
+      { p: "Travelers must ensure they hold a valid passport (with required minimum validity), visa, and necessary travel documents." },
+      { p: "Any delay, deportation, or denial of entry due to incomplete, incorrect, or invalid documents is entirely the responsibility of the customer." },
+    ],
+  },
+  {
+    number: "04",
+    title: "Force Majeure / Unforeseen Events",
+    blocks: [
+      { p: "Ambaari Tours and Travels shall not be liable for compensation, refund, or claim for changes in itinerary or unutilized services resulting from force majeure events, including weather disruptions, strikes, natural calamities, pandemics, or government restrictions." },
+    ],
+  },
+  {
+    number: "05",
+    title: "Package Pricing",
+    blocks: [
+      { p: "Package cost is based on current rates, taxes, and currency exchange rates at the time of booking." },
+      { p: "Any increase in taxes, fuel surcharge, visa fees, or currency exchange fluctuation after booking shall be payable by the customer." },
+    ],
+  },
+  {
+    number: "06",
+    title: "Cancellation & Refund Policy",
+    blocks: [
+      { p: "All cancellations must be made in writing." },
+      {
+        list: [
+          "Cancellations made 30+ days before departure: refund of the advance minus a 10% processing fee",
+          "Cancellations made 15–29 days before departure: 50% cancellation charge",
+          "Cancellations made within 14 days of departure: non-refundable",
+        ],
+      },
+      { p: "Applicable cancellation charges as per company policy and those imposed by airlines, hotels, and other service providers will apply. No refund will be provided for partially used services." },
+    ],
+  },
+  {
+    number: "07",
+    title: "Customer Declaration",
+    blocks: [
+      { p: "I/We have read, understood, and agree to abide by the above terms and conditions. I/We acknowledge that Ambaari Tours and Travels is acting as a facilitator/agent and is not responsible for circumstances beyond its control. I/We confirm that valid travel insurance has been purchased; otherwise, I/we accept full responsibility for any issues or losses arising from non-purchase of travel insurance." },
+    ],
+  },
+  {
+    number: "08",
+    title: "Questions About These Terms?",
+    blocks: [
+      { p: "For any questions about our terms, cancellation policy, or a specific booking, reach out to us:" },
+      { list: [`Email: ${COMPANY_EMAIL_TERMS}`, `Phone: ${COMPANY_PHONE_TERMS}`] },
+    ],
+  },
+];
+
+function renderTermsBlock(block: TermsBlock): string {
+  if ("list" in block) {
+    return `<ul class="terms-list">${block.list.map((li) => `<li>${escapeHtml(li)}</li>`).join("")}</ul>`;
+  }
+  return `<p>${escapeHtml(block.p)}</p>`;
+}
+
+function renderTermsSection(section: TermsSection): string {
+  return `<div class="terms-section">
+    <div class="terms-num">${section.number}</div>
+    <div class="terms-section-body">
+      <h4>${escapeHtml(section.title)}</h4>
+      ${section.blocks.map(renderTermsBlock).join("")}
+    </div>
+  </div>`;
+}
+
+function buildTermsPageHtml(input: InvoiceInput): string {
+  const special = (input.specialRequirements || "").trim();
+  const specialBlock = special
+    ? `<div class="invoice-block-title">Special Requirements</div>
+       <div class="terms-special">${escapeHtml(special).replace(/\n/g, "<br>")}</div>`
+    : "";
+
+  return `<div class="invoice-doc terms-doc">
+    ${specialBlock}
+    <div class="invoice-block-title">Terms &amp; Conditions</div>
+    <div class="terms-intro"><p>${escapeHtml(TERMS_INTRO)}</p></div>
+
+    <div class="terms-group-heading">Domestic Tour Packages</div>
+    ${DOMESTIC_TERMS.map(renderTermsSection).join("")}
+
+    <div class="terms-group-heading">International Tour Packages</div>
+    ${INTERNATIONAL_TERMS.map(renderTermsSection).join("")}
+  </div>`;
+}
+
 async function renderInvoicePdf(
   input: InvoiceInput,
   filename: string,
@@ -184,7 +377,11 @@ async function renderInvoicePdf(
 ): Promise<Blob | void> {
   const { balanceDue } = computeInvoiceTotals(input);
   const qrDataUrl = await buildUpiScannerDataUrl(String(balanceDue > 0 ? balanceDue : 0));
-  const html = buildInvoiceHtml(input, qrDataUrl);
+  // Two top-level blocks — downloadItineraryPdf measures/paginates each
+  // top-level child of the container independently, so the terms doc
+  // (much taller than one page) naturally starts on its own page after the
+  // invoice doc fills page 1, without any manual page-break bookkeeping.
+  const html = buildInvoiceHtml(input, qrDataUrl) + buildTermsPageHtml(input);
 
   const container = document.createElement("div");
   container.style.position = "fixed";

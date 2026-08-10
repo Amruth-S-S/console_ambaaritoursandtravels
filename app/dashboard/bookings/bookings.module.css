@@ -332,7 +332,8 @@
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -340,7 +341,12 @@
   padding: 9px 13px;
   color: var(--ink);
   font-size: 14px;
+  font-family: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field textarea {
+  resize: vertical;
 }
 
 .field select:disabled {
@@ -349,7 +355,8 @@
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
   outline: none;
