@@ -384,17 +384,20 @@ export default function BookingsPage() {
     }
   }
 
-  // Fired after a booking is created — builds the same invoice PDF as the
-  // "Download Invoice PDF" button and hands it to the backend to email to
-  // the client and the company inbox. Runs after the modal has already
-  // closed, so failures here surface as a toast rather than blocking booking
-  // creation (the booking itself is already saved either way).
+  // Fired after a booking is created OR edited — builds the same invoice
+  // PDF as the "Download Invoice PDF" button and hands it to the backend to
+  // email to the client, the company inbox, and the assigned user. Runs
+  // after the modal has already closed, so failures here surface as a toast
+  // rather than blocking booking creation/edits (the booking itself is
+  // already saved either way). Re-sending on every edit is deliberate — a
+  // balance-due edit is exactly the kind of change (updated amount paid,
+  // new balance) the client and staff need the refreshed invoice for.
   async function emailInvoice(bookingId: string) {
     try {
       const filename = invoiceFilename();
       const blob = await getInvoicePdfBlob(buildInvoiceInput(), filename);
       await api.sendBookingInvoiceEmail(bookingId, blob, filename);
-      notify("ok", "Invoice emailed to client & company");
+      notify("ok", "Invoice emailed to client, company & assigned user");
     } catch (e) {
       notify("err", e instanceof Error ? e.message : "Booking saved, but the invoice email failed to send");
     }
@@ -442,6 +445,7 @@ export default function BookingsPage() {
         notify("ok", `Booking updated for ${body.clientName}`);
         setModalOpen(false);
         load();
+        void emailInvoice(editingId);
       }
     } catch (e) {
       setFormErr(e instanceof Error ? e.message : "Something went wrong");
