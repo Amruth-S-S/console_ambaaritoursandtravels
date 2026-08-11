@@ -120,6 +120,7 @@ export default function BookingsPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [newPayment, setNewPayment] = useState<AdvancePayment>(emptyPayment);
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<"create" | "update" | "sendMail" | null>(null);
   const [formErr, setFormErr] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrBusy, setQrBusy] = useState(false);
@@ -403,9 +404,14 @@ export default function BookingsPage() {
     }
   }
 
-  async function onSubmit() {
+  // Edit mode has two save paths: "Update Changes" saves silently, "Send
+  // Mail" saves and re-sends the confirmation email — e.g. after adjusting
+  // the balance due, so the client/office/user get the refreshed invoice.
+  // Create mode only ever has the one path (always emails).
+  async function onSubmit(sendEmail: boolean) {
     setFormErr("");
     setBusy(true);
+    setBusyAction(mode === "create" ? "create" : sendEmail ? "sendMail" : "update");
     try {
       const body = {
         userId: isAdmin ? form.userId : user?.id || "",
@@ -442,15 +448,21 @@ export default function BookingsPage() {
         void emailInvoice(created.id);
       } else if (editingId) {
         await api.updateBooking(editingId, body);
-        notify("ok", `Booking updated for ${body.clientName}`);
+        notify(
+          "ok",
+          sendEmail
+            ? `Booking updated for ${body.clientName} — invoice emailed`
+            : `Booking updated for ${body.clientName}`
+        );
         setModalOpen(false);
         load();
-        void emailInvoice(editingId);
+        if (sendEmail) void emailInvoice(editingId);
       }
     } catch (e) {
       setFormErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -1045,14 +1057,30 @@ export default function BookingsPage() {
           <button className={styles.cancelBtn} onClick={closeModal} disabled={busy}>
             Cancel
           </button>
-          <button className={styles.submit} onClick={onSubmit} disabled={!canSubmit}>
-            {busy
-              ? mode === "create"
-                ? "Creating…"
-                : "Saving…"
+          {mode === "edit" && (
+            <button
+              type="button"
+              className={styles.cancelBtn}
+              onClick={() => onSubmit(false)}
+              disabled={!canSubmit}
+              title="Save the changes without emailing anyone"
+            >
+              {busyAction === "update" ? "Saving…" : "Update Changes"}
+            </button>
+          )}
+          <button
+            className={styles.submit}
+            onClick={() => onSubmit(true)}
+            disabled={!canSubmit}
+            title={mode === "edit" ? "Save the changes and email the updated invoice to client, company & assigned user" : undefined}
+          >
+            {busyAction === "create"
+              ? "Creating…"
+              : busyAction === "sendMail"
+              ? "Sending…"
               : mode === "create"
               ? "Create booking"
-              : "Save changes"}
+              : "Send Mail"}
           </button>
         </div>
       </Modal>
