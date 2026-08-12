@@ -66,6 +66,12 @@ export type AdvancePayment = {
   note: string;
 };
 
+export type BookingDocument = {
+  name: string;
+  type: string;
+  data: string;
+};
+
 export type BookingData = {
   userId: string;
   clientName: string;
@@ -103,6 +109,12 @@ export type BookingData = {
   // Free-text notes from the client — shown on page 2 of the invoice
   // alongside the hardcoded terms & conditions.
   specialRequirements?: string;
+  // ID document uploads — excluded from listBookings() (see the backend
+  // route) so getBooking(id) must be used to see/edit them.
+  aadharDoc?: BookingDocument | null;
+  panDoc?: BookingDocument | null;
+  passportDoc?: BookingDocument | null;
+  otherDocs?: BookingDocument[];
 };
 
 export type Booking = BookingData & {
@@ -215,6 +227,10 @@ export const api = {
   },
 
   listBookings: () => request<Booking[]>("/bookings"),
+  // Full record including ID documents, which listBookings() excludes for
+  // list-view performance — used before opening the edit form so previously
+  // uploaded Aadhar/PAN/Passport/other files are visible again.
+  getBooking: (id: string) => request<Booking>(`/bookings/${id}`),
   // Computed server-side against ALL bookings (not just what this account
   // can see) so the sequence stays continuous and collision-free across
   // every user — see the backend route for why a client-side computation

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { api, AdvancePayment, Booking, Package, User } from "@/lib/api";
+import { api, AdvancePayment, Booking, BookingDocument, Package, User } from "@/lib/api";
 import { buildUpiScannerDataUrl } from "@/lib/upiQr";
 import { computeInvoiceTotals, downloadInvoicePdf, getInvoicePdfBlob } from "@/lib/invoice";
+import { readFileAsDataURL } from "@/lib/itinerary";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
@@ -65,6 +66,10 @@ type FormState = {
   amount: string;
   transactionId: string;
   specialRequirements: string;
+  aadharDoc: BookingDocument | null;
+  panDoc: BookingDocument | null;
+  passportDoc: BookingDocument | null;
+  otherDocs: BookingDocument[];
 };
 
 function todayIso(): string {
@@ -97,9 +102,38 @@ const emptyForm: FormState = {
   amount: "",
   transactionId: "",
   specialRequirements: "",
+  aadharDoc: null,
+  panDoc: null,
+  passportDoc: null,
+  otherDocs: [],
 };
 
 const emptyPayment: AdvancePayment = { amount: "", date: "", note: "" };
+
+// Small thumbnail for an uploaded ID document — image types get a real
+// preview, anything else (PDF, etc.) gets a file icon. Either way it opens
+// the original in a new tab via its own data URL, and can be removed.
+function DocPreview({ doc, onRemove }: { doc: BookingDocument; onRemove: () => void }) {
+  const isImage = doc.type.startsWith("image/");
+  return (
+    <div className={styles.docPreview}>
+      <a href={doc.data} target="_blank" rel="noreferrer" title={doc.name}>
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={doc.data} alt={doc.name} />
+        ) : (
+          <span className={styles.docFileIcon}>
+            <i className="fas fa-file-lines" />
+          </span>
+        )}
+        <span className={styles.docName}>{doc.name}</span>
+      </a>
+      <button type="button" onClick={onRemove} aria-label={`Remove ${doc.name}`} title="Remove">
+        ×
+      </button>
+    </div>
+  );
+}
 
 export default function BookingsPage() {
   const { user } = useAuth();
@@ -121,6 +155,8 @@ export default function BookingsPage() {
   const [newPayment, setNewPayment] = useState<AdvancePayment>(emptyPayment);
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<"create" | "update" | "sendMail" | null>(null);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docBusy, setDocBusy] = useState<"aadhar" | "pan" | "passport" | "other" | null>(null);
   const [formErr, setFormErr] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrBusy, setQrBusy] = useState(false);
@@ -129,6 +165,7 @@ export default function BookingsPage() {
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const createRequestId = useRef(0);
+  const editRequestId = useRef(0);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -271,7 +308,10 @@ export default function BookingsPage() {
     }
   }
 
-  function openEdit(b: Booking) {
+  async function openEdit(b: Booking) {
+    // Guards the async doc-fetch below against a stale response landing
+    // after the user has closed this modal and opened a different booking.
+    const requestId = ++editRequestId.current;
     setMode("edit");
     setEditingId(b.id);
     setForm({
@@ -300,11 +340,35 @@ export default function BookingsPage() {
       amount: b.amount,
       transactionId: b.transactionId,
       specialRequirements: b.specialRequirements || "",
+      // listBookings() omits ID documents for performance — placeholder
+      // here, filled in from the full record fetched just below.
+      aadharDoc: null,
+      panDoc: null,
+      passportDoc: null,
+      otherDocs: [],
     });
     setNewPayment({ amount: "", date: todayIso(), note: "" });
     setFormErr("");
     setQrDataUrl(null);
     setModalOpen(true);
+    setDocsLoading(true);
+    try {
+      const full = await api.getBooking(b.id);
+      if (editRequestId.current === requestId) {
+        setForm((f) => ({
+          ...f,
+          aadharDoc: full.aadharDoc ?? null,
+          panDoc: full.panDoc ?? null,
+          passportDoc: full.passportDoc ?? null,
+          otherDocs: full.otherDocs ?? [],
+        }));
+      }
+    } catch {
+      // Non-fatal — the rest of the form is already editable; documents
+      // just won't show until the booking is reopened.
+    } finally {
+      if (editRequestId.current === requestId) setDocsLoading(false);
+    }
   }
 
   function closeModal() {
@@ -343,6 +407,47 @@ export default function BookingsPage() {
       ...form,
       advancePayments: form.advancePayments.filter((_, i) => i !== index),
     });
+  }
+
+  async function fileToDoc(file: File): Promise<BookingDocument> {
+    // readFileAsDataURL resizes/re-compresses image files (see lib/itinerary.ts)
+    // and passes anything else (PDFs) through unchanged — safe for both.
+    const data = await readFileAsDataURL(file);
+    return { name: file.name, type: file.type, data };
+  }
+
+  async function onSingleDocChange(
+    field: "aadharDoc" | "panDoc" | "passportDoc",
+    busyKey: "aadhar" | "pan" | "passport",
+    file: File | undefined
+  ) {
+    if (!file) return;
+    setDocBusy(busyKey);
+    try {
+      const doc = await fileToDoc(file);
+      setForm((f) => ({ ...f, [field]: doc }));
+    } catch {
+      notify("err", "Failed to read file");
+    } finally {
+      setDocBusy(null);
+    }
+  }
+
+  async function onOtherDocsChange(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setDocBusy("other");
+    try {
+      const docs = await Promise.all(Array.from(files).map(fileToDoc));
+      setForm((f) => ({ ...f, otherDocs: [...f.otherDocs, ...docs] }));
+    } catch {
+      notify("err", "Failed to read one or more files");
+    } finally {
+      setDocBusy(null);
+    }
+  }
+
+  function removeOtherDoc(index: number) {
+    setForm((f) => ({ ...f, otherDocs: f.otherDocs.filter((_, i) => i !== index) }));
   }
 
   function buildInvoiceInput() {
@@ -439,6 +544,10 @@ export default function BookingsPage() {
         amount: form.amount.trim(),
         transactionId: form.transactionId.trim(),
         specialRequirements: form.specialRequirements.trim(),
+        aadharDoc: form.aadharDoc,
+        panDoc: form.panDoc,
+        passportDoc: form.passportDoc,
+        otherDocs: form.otherDocs,
       };
       if (mode === "create") {
         const created = await api.createBooking(body);
@@ -741,6 +850,84 @@ export default function BookingsPage() {
             placeholder="e.g. Vegetarian meals, wheelchair access, early check-in…"
             onChange={(e) => setForm({ ...form, specialRequirements: e.target.value })}
           />
+        </div>
+
+        <div className={styles.sectionLabel}>
+          Documents{docsLoading && <span className={styles.docsLoadingNote}> — loading existing files…</span>}
+        </div>
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="b-doc-aadhar">Aadhar Card</label>
+            <input
+              id="b-doc-aadhar"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => {
+                void onSingleDocChange("aadharDoc", "aadhar", e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            {docBusy === "aadhar" && <div className={styles.docStatus}>Uploading…</div>}
+            {form.aadharDoc && (
+              <DocPreview doc={form.aadharDoc} onRemove={() => setForm((f) => ({ ...f, aadharDoc: null }))} />
+            )}
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-doc-pan">PAN Card</label>
+            <input
+              id="b-doc-pan"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => {
+                void onSingleDocChange("panDoc", "pan", e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            {docBusy === "pan" && <div className={styles.docStatus}>Uploading…</div>}
+            {form.panDoc && (
+              <DocPreview doc={form.panDoc} onRemove={() => setForm((f) => ({ ...f, panDoc: null }))} />
+            )}
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="b-doc-passport">Passport</label>
+            <input
+              id="b-doc-passport"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => {
+                void onSingleDocChange("passportDoc", "passport", e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            {docBusy === "passport" && <div className={styles.docStatus}>Uploading…</div>}
+            {form.passportDoc && (
+              <DocPreview
+                doc={form.passportDoc}
+                onRemove={() => setForm((f) => ({ ...f, passportDoc: null }))}
+              />
+            )}
+          </div>
+        </div>
+        <div className={styles.field}>
+          <label htmlFor="b-doc-other">Upload files</label>
+          <input
+            id="b-doc-other"
+            type="file"
+            multiple
+            accept="image/*,application/pdf"
+            onChange={(e) => {
+              void onOtherDocsChange(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          {docBusy === "other" && <div className={styles.docStatus}>Uploading…</div>}
+          {form.otherDocs.length > 0 && (
+            <div className={styles.docGrid}>
+              {form.otherDocs.map((doc, i) => (
+                <DocPreview key={`${doc.name}-${i}`} doc={doc} onRemove={() => removeOtherDoc(i)} />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className={styles.sectionLabel}>Package details</div>

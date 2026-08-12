@@ -373,6 +373,94 @@
   border-bottom: 1px solid var(--border);
 }
 
+.docsLoadingNote {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--ink-faint);
+}
+
+.docStatus {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.docGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.docPreview {
+  position: relative;
+  display: inline-flex;
+  margin-top: 10px;
+}
+
+.docGrid .docPreview {
+  margin-top: 0;
+}
+
+.docPreview a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 92px;
+  padding: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.docPreview img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.docFileIcon {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: var(--ink-faint);
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.docName {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.docPreview button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .paymentRow {
   align-items: flex-end;
 }
