@@ -56,6 +56,10 @@ function sanitizeChildren(root: Node) {
         const bg = /background-color\s*:\s*[^;]+/i.exec(attr.value);
         if (bg) el.setAttribute("style", bg[0]);
         else el.removeAttribute("style");
+      } else if (el.tagName === "SPAN" && attr.name === "data-force-bullet") {
+        // Kept as-is — the manual "force a bullet on this line" marker (see
+        // RichTextField's bullet button). Only meaningful with value "1".
+        if (attr.value !== "1") el.removeAttribute(attr.name);
       } else {
         el.removeAttribute(attr.name);
       }
@@ -74,13 +78,14 @@ export function htmlToText(html: string): string {
   return template.content.textContent || "";
 }
 
-// A line that's bold and/or highlighted reads as an intentional callout, not
-// a bullet point — used to auto-suppress the bullet on such lines wherever
-// bullets are auto-generated (Package Highlights, Inclusions, Exclusions,
-// Day descriptions, legal-text fields). Presence anywhere in the line is
-// enough — doesn't need to span the whole line.
-export function isEmphasizedLine(lineHtml: string): boolean {
-  return /<(b|strong)\b|<span\b[^>]*background-color/i.test(lineHtml);
+// A line the user has explicitly bulleted via the toolbar's bullet button
+// (see RichTextField.handleBulletPoint) — this is the ONLY way a line
+// becomes a bullet in the rendered itinerary/invoice output (Package
+// Highlights, Inclusions, Exclusions, Day descriptions, legal-text fields).
+// Nothing bullets automatically; an unmarked line always renders as a plain
+// paragraph, bold/highlighted or not.
+export function hasForceBullet(lineHtml: string): boolean {
+  return /<span\b[^>]*data-force-bullet="1"/i.test(lineHtml);
 }
 
 // Splits rich HTML into per-line HTML fragments. A "line" boundary is either

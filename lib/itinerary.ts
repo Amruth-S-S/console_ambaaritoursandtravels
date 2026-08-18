@@ -2,8 +2,8 @@ import type { PackageData, PackageDay } from "./api";
 import { AMBAARI_LOGO_BASE64 } from "./ambaariLogo";
 import {
   escapeHtml,
+  hasForceBullet,
   htmlToText,
-  isEmphasizedLine,
   sanitizeRichHtml,
   splitHtmlLines,
   splitHtmlLinesRaw,
@@ -25,13 +25,13 @@ export function splitCommas(text: string): string[] {
     .filter((s) => s !== "");
 }
 
-// Highlights/Inclusions/Exclusions/Day descriptions are all inherently
-// always-bulleted lists — except a bold and/or highlighted line, which reads
-// as a callout instead of a bullet point (see isEmphasizedLine). Consecutive
-// bulleted lines share one <ul>; a callout closes it and sits between as its
-// own paragraph. Plain-escaped text (old, pre-rich-text data) never matches
-// isEmphasizedLine, so it always falls through to "bulleted" — same look as
-// before rich text existed.
+// Highlights/Inclusions/Exclusions/Day descriptions: a line only becomes a
+// bullet when explicitly marked via the toolbar's bullet button (see
+// hasForceBullet/RichTextField.handleBulletPoint) — nothing bullets
+// automatically. Everything else renders as a plain paragraph (still bold/
+// highlighted if formatted that way, just not a bullet). Consecutive
+// bulleted lines share one <ul>; a plain line closes it and sits between as
+// its own paragraph.
 function renderMixedBulletList(items: string[], calloutClass: string): string {
   let html = "";
   let listOpen = false;
@@ -43,15 +43,15 @@ function renderMixedBulletList(items: string[], calloutClass: string): string {
   };
   items.forEach((item) => {
     const content = sanitizeRichHtml(item);
-    if (isEmphasizedLine(content)) {
-      closeList();
-      html += `<p class="${calloutClass}">${content}</p>`;
-    } else {
+    if (hasForceBullet(content)) {
       if (!listOpen) {
         html += "<ul>";
         listOpen = true;
       }
       html += `<li>${content}</li>`;
+    } else {
+      closeList();
+      html += `<p class="${calloutClass}">${content}</p>`;
     }
   });
   closeList();
@@ -79,13 +79,11 @@ export function toBulletList(text: string): string {
 // change its tag structure):
 //   "1. Something"    -> numbered MAIN heading (bold, blue, numbered circle)
 //   "Sub heading:"     -> SUB-heading (bold) - ends the line with a colon
-//   "- a point"         -> bullet point (or just a short unmarked line)
-//   "A full sentence."  -> stays as a bullet too (this tool renders everything
-//                          that isn't a heading as a bullet row)
-// A bold and/or highlighted line is the one exception to "everything that
-// isn't a heading is a bullet" — it renders as its own plain callout
-// paragraph instead (see isEmphasizedLine), so long as it isn't itself a
-// numbered/sub-heading (that detection still takes priority).
+//   "- a point"         -> bullet point (typed marker)
+//   anything else       -> plain paragraph, UNLESS forced via the toolbar's
+//                          bullet button (hasForceBullet) — nothing bullets
+//                          by default anymore; heading detection still takes
+//                          priority over either bullet path.
 export function formatLegalText(html: string): string {
   if (!html || !htmlToText(html).trim()) return "";
   // splitHtmlLinesRaw (not splitHtmlLines) — keeps blank lines, which is what
@@ -119,6 +117,7 @@ export function formatLegalText(html: string): string {
     const mainMatch = plain.match(mainHeadingRe);
     const bulletMatch = !mainMatch ? plain.match(bulletMarkerRe) : null;
     const subMatch = !mainMatch && !bulletMatch ? plain.match(subHeadingRe) : null;
+    const forced = !mainMatch && !subMatch && hasForceBullet(lineHtml);
 
     if (mainMatch) {
       flushBullets();
@@ -133,14 +132,14 @@ export function formatLegalText(html: string): string {
     } else if (subMatch) {
       flushBullets();
       out += `<p class="legal-heading-sub">${lineHtml}</p>`;
-    } else if (isEmphasizedLine(lineHtml)) {
-      flushBullets();
-      out += `<p class="legal-plain-line">${lineHtml}</p>`;
     } else if (bulletMatch) {
       // Strip a leading "- "/"• " etc. the same best-effort way.
       bulletBuffer.push(lineHtml.replace(/^\s*[-•✔✓➤▪◦]\s*/, ""));
-    } else {
+    } else if (forced) {
       bulletBuffer.push(lineHtml);
+    } else {
+      flushBullets();
+      out += `<p class="legal-plain-line">${lineHtml}</p>`;
     }
   });
   flushBullets();

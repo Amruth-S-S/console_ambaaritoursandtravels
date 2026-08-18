@@ -138,7 +138,7 @@
 .itinerary-content .section ul {
   list-style: disc;
   padding-left: 26px;
-  margin: 6px 0;
+  margin: 12px 0 0;
 }
 
 .itinerary-content .section ul li {
@@ -149,7 +149,19 @@
 .itinerary-content .section p {
   line-height: 1.85;
   white-space: pre-wrap;
-  margin: 10px 0;
+  margin: 12px 0 0;
+}
+
+/* Bulleted lines (<li>, 12px between each) and plain non-bulleted lines
+   (<p class="callout-line">, e.g. a line with no bullet applied via the
+   toolbar's bullet button) previously used different margin rules that
+   didn't collapse the same way, so a plain line after a bulleted one sat
+   noticeably further away than two bulleted lines sit from each other. Both
+   now use the same top-only 12px rhythm regardless of which kind follows
+   which, and neither adds extra space right after the section heading. */
+.itinerary-content .section h3 + ul,
+.itinerary-content .section h3 + p {
+  margin-top: 0;
 }
 
 .itinerary-content .legal-bullet-row {

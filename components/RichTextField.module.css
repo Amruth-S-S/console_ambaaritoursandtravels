@@ -49,3 +49,24 @@
   color: #94a3b8;
   pointer-events: none;
 }
+
+/* Purely visual — a CSS ::before, not real text, so it never ends up in the
+   saved HTML or gets double-rendered alongside the real <li> bullet the
+   preview/PDF generates for these marked lines. Lets you see right in this
+   box which line you've bulleted, instead of only finding out from the Live
+   Preview panel over on the side. */
+.editable [data-force-bullet="1"] {
+  display: inline-block;
+  min-width: 100%;
+  padding-left: 18px;
+  position: relative;
+}
+
+.editable [data-force-bullet="1"]::before {
+  content: "•";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  color: #2563eb;
+  font-weight: 700;
+}

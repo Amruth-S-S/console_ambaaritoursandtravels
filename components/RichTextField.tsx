@@ -83,6 +83,61 @@ export default function RichTextField({
     emitChange();
   }
 
+  // Toggles a bullet on the current line — the line containing the caret, or
+  // the whole line if any part of it is selected. Nothing bullets
+  // automatically anywhere this field is used (Package Highlights,
+  // Inclusions, Exclusions, Day descriptions, legal-text fields) — this
+  // button is the only way a line becomes one, via a
+  // <span data-force-bullet="1"> marker wrapping the line's content,
+  // checked by hasForceBullet() at render time (lib/richtext.ts).
+  function handleBulletPoint() {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
+    if (el.childNodes.length === 0) return;
+    const anchorNode = sel.anchorNode;
+
+    // Chrome only wraps a line in its own <div> once Enter has produced a
+    // SECOND line — the very first line sits as loose child nodes directly
+    // under the editable root until then (see splitHtmlLinesRaw in
+    // lib/richtext.ts). Wrap any such loose leading content into a real
+    // <div> first, so every line — first or not — is a top-level <div> by
+    // the time the ancestor walk below runs. Without this, clicking the
+    // bullet button while on line 1 tried to run querySelector on a bare
+    // text node and silently failed.
+    const looseLeading: Node[] = [];
+    for (const child of Array.from(el.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE && (child as HTMLElement).tagName === "DIV") break;
+      looseLeading.push(child);
+    }
+    if (looseLeading.length > 0) {
+      const wrapper = document.createElement("div");
+      el.insertBefore(wrapper, looseLeading[0]);
+      looseLeading.forEach((n) => wrapper.appendChild(n));
+    }
+
+    // The nearest ancestor that's a direct child of the editable root — that
+    // IS the current line, now that every line is guaranteed to be one.
+    let node: Node | null = anchorNode;
+    while (node && node !== el && node.parentNode && node.parentNode !== el) node = node.parentNode;
+    if (!node || node.nodeType !== Node.ELEMENT_NODE || node.parentNode !== el) return;
+    const line = node as HTMLElement;
+
+    const existing = line.querySelector('span[data-force-bullet="1"]') as HTMLElement | null;
+    if (existing) {
+      while (existing.firstChild) existing.parentNode?.insertBefore(existing.firstChild, existing);
+      existing.parentNode?.removeChild(existing);
+    } else {
+      const marker = document.createElement("span");
+      marker.setAttribute("data-force-bullet", "1");
+      while (line.firstChild) marker.appendChild(line.firstChild);
+      line.appendChild(marker);
+    }
+    emitChange();
+  }
+
   return (
     <div>
       <div className={styles.toolbar}>
@@ -103,6 +158,15 @@ export default function RichTextField({
           title="Highlight selected text"
         >
           <i className="fas fa-highlighter" />
+        </button>
+        <button
+          type="button"
+          className={styles.toolbarBtn}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleBulletPoint}
+          title="Toggle a bullet point on this line"
+        >
+          <i className="fas fa-list-ul" />
         </button>
         <button
           type="button"
