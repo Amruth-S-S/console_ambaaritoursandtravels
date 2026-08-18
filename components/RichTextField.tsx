@@ -6,6 +6,60 @@ import styles from "./RichTextField.module.css";
 
 const HIGHLIGHT_COLOR = "#fef08a";
 
+// A "line" in this editor can be structured two different ways: Chrome's
+// native Enter key wraps each new line in its own top-level <div> (see
+// splitHtmlLinesRaw in lib/richtext.ts) — but pasted text (onPaste below)
+// joins lines with inline <br>s instead, all sitting flat as direct
+// children of the editable root with no per-line wrapper at all. The
+// renderer (splitHtmlLinesRaw) already understands both forms, but the
+// bullet button's "which line is the caret in" lookup only understood the
+// <div> form — for <br>-joined content it walked straight to the editable
+// root itself, meaning EVERY line resolved to the same one "line" and a
+// bullet toggle on any of them collided with all the others. This rewrites
+// the root's children into one <div> per line unconditionally (regardless
+// of whether they arrived as <div>s, loose text before the first <div>, or
+// <br>-joined runs), so the ancestor walk in handleBulletPoint always finds
+// a distinct container per line no matter how that line was typed or
+// pasted in. A no-op once the content is already clean div-per-line — which
+// it stays, once normalized here the first time.
+function normalizeLinesToDivs(el: HTMLElement) {
+  const original = Array.from(el.childNodes);
+  const alreadyClean = original.every(
+    (n) => n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName === "DIV"
+  );
+  if (alreadyClean) return;
+
+  const lines: HTMLElement[] = [];
+  let buffer: Node[] = [];
+  function flushBuffer() {
+    const wrapper = document.createElement("div");
+    buffer.forEach((n) => wrapper.appendChild(n));
+    lines.push(wrapper);
+    buffer = [];
+  }
+
+  original.forEach((child) => {
+    const isElement = child.nodeType === Node.ELEMENT_NODE;
+    const tag = isElement ? (child as HTMLElement).tagName : "";
+    if (tag === "DIV") {
+      flushBuffer();
+      lines.push(child as HTMLElement);
+    } else if (tag === "BR") {
+      flushBuffer();
+      el.removeChild(child);
+    } else {
+      buffer.push(child);
+    }
+  });
+  flushBuffer();
+
+  // appendChild moves an already-in-document node rather than cloning it,
+  // so this both reorders the existing <div>s (a no-op position-wise) and
+  // relocates every newly-wrapped line into place — final order matches
+  // `lines`, which matches the original left-to-right content order.
+  lines.forEach((line) => el.appendChild(line));
+}
+
 export default function RichTextField({
   value,
   onChange,
@@ -18,6 +72,22 @@ export default function RichTextField({
   rows?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Captured at mousedown, before the click — reading window.getSelection()
+  // fresh inside the click handler turned out to be unreliable for which
+  // line actually gets bulleted (a live Selection tied to a toolbar button
+  // click, outside the editable region, isn't guaranteed to still describe
+  // the line the user meant by the time the click fires). Snapshotting the
+  // Range up front removes that ambiguity entirely.
+  const savedRangeRef = useRef<Range | null>(null);
+
+  function saveSelectionForBullet() {
+    const sel = window.getSelection();
+    const el = ref.current;
+    savedRangeRef.current =
+      sel && sel.rangeCount > 0 && el && el.contains(sel.anchorNode)
+        ? sel.getRangeAt(0).cloneRange()
+        : null;
+  }
 
   // Keep the DOM in sync when `value` changes from OUTSIDE this component
   // (loading a saved package, "Load Example", clearing the form) — but not
@@ -93,30 +163,13 @@ export default function RichTextField({
   function handleBulletPoint() {
     const el = ref.current;
     if (!el) return;
-    el.focus();
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
+    const range = savedRangeRef.current;
+    if (!range || !el.contains(range.startContainer)) return;
     if (el.childNodes.length === 0) return;
-    const anchorNode = sel.anchorNode;
+    const anchorNode = range.startContainer;
+    el.focus();
 
-    // Chrome only wraps a line in its own <div> once Enter has produced a
-    // SECOND line — the very first line sits as loose child nodes directly
-    // under the editable root until then (see splitHtmlLinesRaw in
-    // lib/richtext.ts). Wrap any such loose leading content into a real
-    // <div> first, so every line — first or not — is a top-level <div> by
-    // the time the ancestor walk below runs. Without this, clicking the
-    // bullet button while on line 1 tried to run querySelector on a bare
-    // text node and silently failed.
-    const looseLeading: Node[] = [];
-    for (const child of Array.from(el.childNodes)) {
-      if (child.nodeType === Node.ELEMENT_NODE && (child as HTMLElement).tagName === "DIV") break;
-      looseLeading.push(child);
-    }
-    if (looseLeading.length > 0) {
-      const wrapper = document.createElement("div");
-      el.insertBefore(wrapper, looseLeading[0]);
-      looseLeading.forEach((n) => wrapper.appendChild(n));
-    }
+    normalizeLinesToDivs(el);
 
     // The nearest ancestor that's a direct child of the editable root — that
     // IS the current line, now that every line is guaranteed to be one.
@@ -162,7 +215,10 @@ export default function RichTextField({
         <button
           type="button"
           className={styles.toolbarBtn}
-          onMouseDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            saveSelectionForBullet();
+          }}
           onClick={handleBulletPoint}
           title="Toggle a bullet point on this line"
         >

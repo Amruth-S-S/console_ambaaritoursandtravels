@@ -138,12 +138,12 @@
 .itinerary-content .section ul {
   list-style: disc;
   padding-left: 26px;
-  margin: 12px 0 0;
+  margin: 8px 0 0;
 }
 
 .itinerary-content .section ul li {
-  margin-bottom: 12px;
-  line-height: 1.85;
+  margin-bottom: 8px;
+  line-height: 1.5;
 }
 
 .itinerary-content .section p {
@@ -152,15 +152,28 @@
   margin: 12px 0 0;
 }
 
-/* Bulleted lines (<li>, 12px between each) and plain non-bulleted lines
-   (<p class="callout-line">, e.g. a line with no bullet applied via the
-   toolbar's bullet button) previously used different margin rules that
-   didn't collapse the same way, so a plain line after a bulleted one sat
-   noticeably further away than two bulleted lines sit from each other. Both
-   now use the same top-only 12px rhythm regardless of which kind follows
-   which, and neither adds extra space right after the section heading. */
+/* Highlights/Inclusions/Exclusions are short one-liners, not the longer
+   multi-line paragraphs .section p's looser 1.85 line-height was set up
+   for — that line-height alone (not margin) was most of the visible gap
+   between sentences, since it pads a lot of empty space around a single
+   short line. Tightened just for these (.callout-line), not the shared
+   .section p rule, which legal-text headings/paragraphs still use and
+   read better looser. */
+.itinerary-content .section .callout-line {
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+/* Bulleted lines (<li>) and plain non-bulleted lines (<p class="callout-line">,
+   e.g. a line with no bullet applied via the toolbar's bullet button)
+   previously used different margin rules that didn't collapse the same way,
+   so a plain line after a bulleted one sat noticeably further away than two
+   bulleted lines sit from each other. Both now use the same top-only 8px
+   rhythm regardless of which kind follows which, and neither adds extra
+   space right after the section heading. */
 .itinerary-content .section h3 + ul,
-.itinerary-content .section h3 + p {
+.itinerary-content .section h3 + p,
+.itinerary-content .section h3 + .callout-line {
   margin-top: 0;
 }
 
@@ -168,8 +181,8 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 12px;
-  line-height: 1.85;
+  margin-bottom: 8px;
+  line-height: 1.5;
 }
 
 .itinerary-content .legal-bullet-row .dot {
@@ -178,16 +191,31 @@
   flex-shrink: 0;
 }
 
+/* .section p (margin:12px 0 0, line-height:1.85 — tuned for genuinely
+   multi-line paragraphs) has HIGHER specificity than a single-class
+   selector like .legal-plain-line alone, so a plain rule here would
+   silently lose to it — same trap .legal-heading-main/-sub were already in
+   (their own margins were never actually applying). Qualified with .section
+   on all three below so they win, and tightened for what's usually one
+   short sentence per line, matching the .callout-line treatment above. */
+.itinerary-content .section .legal-plain-line {
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
 
-.itinerary-content .legal-heading-main {
+.itinerary-content .section h3 + .legal-plain-line {
+  margin-top: 0;
+}
+
+.itinerary-content .section .legal-heading-main {
   font-weight: 700;
   font-size: 18px;
   color: #1d4ed8;
-  margin: 20px 0 8px;
-  line-height: 1.5;
+  margin: 14px 0 6px;
+  line-height: 1.4;
 }
 
-.itinerary-content .legal-heading-main:first-child {
+.itinerary-content .section .legal-heading-main:first-child {
   margin-top: 0;
 }
 
@@ -204,19 +232,14 @@
   margin-right: 8px;
 }
 
-.itinerary-content .legal-heading-sub {
+.itinerary-content .section .legal-heading-sub {
   font-weight: 700;
-  margin: 12px 0 4px 4px;
-  line-height: 1.6;
-}
-
-.itinerary-content .legal-para {
-  margin: 10px 0;
-  line-height: 1.85;
+  margin: 8px 0 4px 4px;
+  line-height: 1.4;
 }
 
 .itinerary-content .legal-spacer {
-  height: 6px;
+  height: 4px;
 }
 
 .itinerary-content .day-item {
