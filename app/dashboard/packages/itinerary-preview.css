@@ -285,14 +285,17 @@
 }
 
 .itinerary-content .day-img {
-  /* Width capped to a medium box (not the full ~970px day-item column) and
-     height:auto (not a fixed height + object-fit) — the box is sized to the
-     photo's own ratio, so it fills edge-to-edge with zero cropping and zero
-     letterbox bars. For multiple images per day, each grid column is
-     already narrower than the cap, so this is a ceiling, not a fixed size. */
+  /* Fixed width AND height (not height:auto) — portrait and landscape
+     photos side by side previously sat at whatever height their own aspect
+     ratio produced, so a day with a tall phone photo next to a wide one
+     looked misaligned/uneven. object-fit:cover crops to fill this fixed
+     box instead of letterboxing, same tradeoff already settled on for the
+     package cards elsewhere in the app (a photo can't be both fully
+     visible AND perfectly uniform-sized unless its ratio happens to match). */
   width: 100%;
   max-width: 320px;
-  height: auto;
+  height: 200px;
+  object-fit: cover;
   border-radius: 8px;
   display: block;
 }
