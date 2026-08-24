@@ -451,6 +451,10 @@ export default function PackagesPage() {
         notify("ok", "Package saved");
       }
       loadPackages();
+      // Back to the list on success — no reason to keep the builder open
+      // once there's nothing left to save. A failed save (below) leaves the
+      // form open instead, so nothing typed gets lost.
+      setView("list");
     } catch (e) {
       notify("err", e instanceof Error ? e.message : "Failed to save package");
     } finally {

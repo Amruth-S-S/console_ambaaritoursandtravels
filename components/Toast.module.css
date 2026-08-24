@@ -17,6 +17,14 @@
   box-shadow: var(--shadow);
   animation: slideIn 0.18s ease-out;
   border: 1px solid transparent;
+  /* A long message (e.g. a validation error naming a specific field) could
+     otherwise stretch the box very wide instead of wrapping — cramped
+     against, or past, whatever's on the right side of the page underneath. */
+  max-width: min(420px, calc(100vw - 64px));
+}
+
+.toast span {
+  overflow-wrap: break-word;
 }
 
 .toast svg {
@@ -32,7 +40,12 @@
 }
 
 .err {
-  background: var(--danger-soft);
+  /* Solid, not --danger-soft (a ~12%-opacity tint) — that let whatever sits
+     behind the toast (e.g. the Packages page's "Live Preview" heading)
+     show straight through it, making the error text unreadable right when
+     it matters most. .ok below uses a solid background for the same
+     reason; this now matches it. */
+  background: #2a1414;
   border-color: rgba(255, 107, 107, 0.35);
   color: #ffb3b3;
 }

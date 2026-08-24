@@ -125,6 +125,46 @@ export type Booking = BookingData & {
   packageTitle: string;
 };
 
+// FastAPI's error body is `{"detail": ...}`, but `detail` isn't always a
+// plain string — a 422 validation failure (e.g. a required field missing)
+// sends an ARRAY of {loc, msg, type} objects instead. Passing that straight
+// to `new Error(...)` stringified it to a useless "[object Object]" toast
+// with no indication of which field was the problem. This turns any shape
+// FastAPI sends into one readable line per field.
+function formatErrorDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    const lines = detail
+      .map((item) => {
+        if (item && typeof item === "object") {
+          const rec = item as { loc?: unknown; msg?: unknown };
+          const loc = Array.isArray(rec.loc) ? rec.loc : [];
+          // Pydantic's loc is like ["body", "packageTitle"] — "body" isn't
+          // meaningful to a user, just the field name after it.
+          const field = loc.filter((p) => p !== "body" && p !== "query").join(".");
+          const msg = typeof rec.msg === "string" ? rec.msg : "Invalid value";
+          return field ? `${field}: ${msg}` : msg;
+        }
+        return typeof item === "string" ? item : null;
+      })
+      .filter((s): s is string => Boolean(s));
+    return lines.length ? lines.join("; ") : null;
+  }
+
+  if (detail && typeof detail === "object") {
+    const msg = (detail as { msg?: unknown }).msg;
+    if (typeof msg === "string") return msg;
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const res = await fetch(`${API}${path}`, {
@@ -144,7 +184,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     let message = "Something went wrong";
     try {
       const data = await res.json();
-      message = data.detail || message;
+      message = formatErrorDetail(data.detail) || message;
     } catch {}
     throw new Error(message);
   }
