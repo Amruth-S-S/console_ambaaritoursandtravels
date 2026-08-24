@@ -349,10 +349,33 @@ export default function PackagesPage() {
     }));
   }
 
+  // Appends to whatever images this day already has, rather than replacing
+  // them — <input type="file"> only ever reports the files picked in THIS
+  // one dialog, so treating that as "the day's images" discarded everything
+  // uploaded in a previous pick. Reads f.days[idx].images fresh inside the
+  // setForm updater (not from the `form` closure) since readFileAsDataURL is
+  // async and other edits could land while it's still resizing/encoding.
   async function handleDayImagesChange(idx: number, e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     const srcs = await Promise.all(files.map(readFileAsDataURL));
-    updateDay(idx, { images: srcs.map((src) => ({ src, caption: "" })) });
+    const added = srcs.map((src) => ({ src, caption: "" }));
+    setForm((f) => ({
+      ...f,
+      days: f.days.map((d, i) => (i === idx ? { ...d, images: [...d.images, ...added] } : d)),
+    }));
+    // Reset so picking the exact same file(s) again still fires onChange —
+    // browsers otherwise treat an unchanged file input value as a no-op.
+    e.target.value = "";
+  }
+
+  function removeDayImage(dayIdx: number, imageIdx: number) {
+    setForm((f) => ({
+      ...f,
+      days: f.days.map((d, i) =>
+        i !== dayIdx ? d : { ...d, images: d.images.filter((_, j) => j !== imageIdx) }
+      ),
+    }));
   }
 
   function updateDayImageCaption(dayIdx: number, imageIdx: number, caption: string) {
@@ -885,6 +908,15 @@ export default function PackagesPage() {
                         <div className={styles.dayImageThumbs}>
                           {day.images.map((img, i) => (
                             <div key={i} className={styles.dayImageThumb}>
+                              <button
+                                type="button"
+                                className={styles.dayImageRemove}
+                                onClick={() => removeDayImage(idx, i)}
+                                aria-label="Remove image"
+                                title="Remove image"
+                              >
+                                ×
+                              </button>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={img.src} alt="" />
                               <input
