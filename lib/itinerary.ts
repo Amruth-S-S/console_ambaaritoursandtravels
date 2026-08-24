@@ -62,8 +62,17 @@ function renderMixedBulletList(items: string[], calloutClass: string): string {
 // now, so this needs to handle real HTML lines — but packages saved before
 // that switch still have their description stored as plain "\n"-separated
 // text, so fall back to the old plain-text splitting for those.
+//
+// Checking only for <div>/<br> to decide "is this rich HTML" missed a real
+// case: a description that's a single unbroken line (the user never
+// pressed Enter) with a bold/highlighted SPAN inside it has neither tag —
+// there's no line break to mark — so it was wrongly treated as legacy
+// plain text and escapeHtml()'d, turning a real <b> tag into literally
+// visible "<b>" text in the output. Checking for any of the tags the
+// editor can actually produce (not just the line-boundary ones) covers
+// that single-line-with-formatting case too.
 export function toBulletList(text: string): string {
-  const isRichHtml = /<div\b|<br\b/i.test(text);
+  const isRichHtml = /<(div|br|b|strong|mark|span)\b/i.test(text);
   const lines = isRichHtml ? splitHtmlLines(text) : splitLines(text).map(escapeHtml);
   if (!lines.length) return "";
   return renderMixedBulletList(lines, "day-line");
