@@ -299,12 +299,21 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
 // load, not just when viewing that one package (this is what took
 // GET /packages from ~160s down to ~40s after excluding day images from
 // that query, then most of the remaining weight turned out to be one 2.4 MB
-// poster). Capping the longest side at 1600px and re-encoding closes that
-// off at the source — PNG stays PNG (preserves transparency, e.g. a logo),
-// everything else re-encodes as JPEG at 0.82 quality, which is more than
-// enough for on-screen/PDF use and typically an order of magnitude smaller.
-const MAX_IMAGE_DIMENSION = 1600;
-const JPEG_QUALITY = 0.82;
+// poster). Capping the longest side and re-encoding closes that off at the
+// source — PNG stays PNG (preserves transparency, e.g. a logo), everything
+// else re-encodes as JPEG, which is more than enough for on-screen/PDF use
+// and typically an order of magnitude smaller.
+//
+// Tightened from 1600px/0.82 — a package with several days' worth of
+// images could still add up past Vercel's ~4.5MB serverless request-body
+// ceiling on save (POST/PUT /packages), since ALL of a package's images
+// travel in that one request together. This roughly halves typical image
+// weight (dimension cut alone is ~(1280/1600)^2 ≈ 64% of the pixel area),
+// buying real headroom for a multi-day, multi-image package to still fit —
+// though a package with MANY large photos can still hit that ceiling; see
+// the 413 handling in lib/api.ts for what the user sees if it does.
+const MAX_IMAGE_DIMENSION = 1280;
+const JPEG_QUALITY = 0.72;
 
 export function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve) => {

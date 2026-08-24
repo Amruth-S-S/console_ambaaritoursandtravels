@@ -182,10 +182,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     let message = "Something went wrong";
-    try {
-      const data = await res.json();
-      message = formatErrorDetail(data.detail) || message;
-    } catch {}
+    if (res.status === 413) {
+      // Vercel's own platform limit on a serverless function's request body
+      // (~4.5MB), not something this app's code can raise — hit when a
+      // package's photos (all embedded as base64, all sent together in one
+      // save) add up past it. This response comes straight from Vercel's
+      // edge layer as plain text, not from the API, so there's no `detail`
+      // JSON to read here the way there is for a normal 4xx/5xx.
+      message =
+        "This package's photos are too large to save in one go (over the server's upload limit). Try removing an image or two, or use smaller/fewer photos, then save again.";
+    } else {
+      try {
+        const data = await res.json();
+        message = formatErrorDetail(data.detail) || message;
+      } catch {}
+    }
     throw new Error(message);
   }
 
