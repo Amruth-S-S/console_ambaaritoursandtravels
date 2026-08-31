@@ -109,11 +109,12 @@ export type BookingData = {
   // Free-text notes from the client — shown on page 2 of the invoice
   // alongside the hardcoded terms & conditions.
   specialRequirements?: string;
-  // ID document uploads — excluded from listBookings() (see the backend
-  // route) so getBooking(id) must be used to see/edit them.
-  aadharDoc?: BookingDocument | null;
-  panDoc?: BookingDocument | null;
-  passportDoc?: BookingDocument | null;
+  // ID document uploads — each accepts one or many files (e.g. front + back
+  // of a card). Excluded from listBookings() (see the backend route) so
+  // getBooking(id) must be used to see/edit them.
+  aadharDoc?: BookingDocument[];
+  panDoc?: BookingDocument[];
+  passportDoc?: BookingDocument[];
   otherDocs?: BookingDocument[];
 };
 

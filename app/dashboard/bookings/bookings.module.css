@@ -396,6 +396,8 @@
 .docPreview {
   position: relative;
   display: inline-flex;
+  flex-direction: column;
+  align-items: center;
   margin-top: 10px;
 }
 
@@ -444,6 +446,36 @@
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
+}
+
+.docNameInput {
+  margin-top: 4px;
+  width: 92px;
+  padding: 3px 6px;
+  font-size: 10.5px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.docNameInput:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.viewDocsHeader {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.viewDocsMeta {
+  margin-top: 6px;
+  margin-left: 43px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
 }
 
 .docPreview button {

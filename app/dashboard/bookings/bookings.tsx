@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api, AdvancePayment, Booking, BookingDocument, Package, User } from "@/lib/api";
 import { buildUpiScannerDataUrl } from "@/lib/upiQr";
 import { computeInvoiceTotals, downloadInvoicePdf, getInvoicePdfBlob } from "@/lib/invoice";
-import { readFileAsDataURL } from "@/lib/itinerary";
+import { downloadItineraryPdf, escapeHtml, readFileAsDataURL } from "@/lib/itinerary";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
@@ -40,6 +40,27 @@ const DeleteIcon = (
   </svg>
 );
 
+const ViewIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path
+      d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const DownloadIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path
+      d="M12 4v11m0 0 4-4m-4 4-4-4M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 type FormState = {
   userId: string;
   clientName: string;
@@ -66,11 +87,17 @@ type FormState = {
   amount: string;
   transactionId: string;
   specialRequirements: string;
-  aadharDoc: BookingDocument | null;
-  panDoc: BookingDocument | null;
-  passportDoc: BookingDocument | null;
+  aadharDoc: BookingDocument[];
+  panDoc: BookingDocument[];
+  passportDoc: BookingDocument[];
   otherDocs: BookingDocument[];
 };
+
+// The 4 document upload fields all behave identically (add one or many
+// files, remove one, rename one) — this key set drives that shared logic
+// (onDocFieldChange/removeDocAt/renameDocAt) instead of 4 near-duplicate
+// handlers.
+type DocField = "aadharDoc" | "panDoc" | "passportDoc" | "otherDocs";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -102,9 +129,9 @@ const emptyForm: FormState = {
   amount: "",
   transactionId: "",
   specialRequirements: "",
-  aadharDoc: null,
-  panDoc: null,
-  passportDoc: null,
+  aadharDoc: [],
+  panDoc: [],
+  passportDoc: [],
   otherDocs: [],
 };
 
@@ -112,8 +139,19 @@ const emptyPayment: AdvancePayment = { amount: "", date: "", note: "" };
 
 // Small thumbnail for an uploaded ID document — image types get a real
 // preview, anything else (PDF, etc.) gets a file icon. Either way it opens
-// the original in a new tab via its own data URL, and can be removed.
-function DocPreview({ doc, onRemove }: { doc: BookingDocument; onRemove: () => void }) {
+// the original in a new tab via its own data URL. The name below it is
+// editable (defaults to the uploaded filename) so it can be labeled
+// something meaningful — "Aadhar front", "Passport page 2" — instead of
+// whatever the camera/phone named the file.
+function DocPreview({
+  doc,
+  onRemove,
+  onRename,
+}: {
+  doc: BookingDocument;
+  onRemove: () => void;
+  onRename: (name: string) => void;
+}) {
   const isImage = doc.type.startsWith("image/");
   return (
     <div className={styles.docPreview}>
@@ -126,11 +164,38 @@ function DocPreview({ doc, onRemove }: { doc: BookingDocument; onRemove: () => v
             <i className="fas fa-file-lines" />
           </span>
         )}
-        <span className={styles.docName}>{doc.name}</span>
       </a>
+      <input
+        type="text"
+        className={styles.docNameInput}
+        value={doc.name}
+        placeholder="Document name"
+        onChange={(e) => onRename(e.target.value)}
+      />
       <button type="button" onClick={onRemove} aria-label={`Remove ${doc.name}`} title="Remove">
         ×
       </button>
+    </div>
+  );
+}
+
+// Read-only counterpart for the "View documents" modal — no rename/remove,
+// just the preview + name + a link that opens/downloads the original.
+function DocPreviewReadOnly({ doc }: { doc: BookingDocument }) {
+  const isImage = doc.type.startsWith("image/");
+  return (
+    <div className={styles.docPreview}>
+      <a href={doc.data} target="_blank" rel="noreferrer" title={doc.name}>
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={doc.data} alt={doc.name} />
+        ) : (
+          <span className={styles.docFileIcon}>
+            <i className="fas fa-file-lines" />
+          </span>
+        )}
+        <span className={styles.docName}>{doc.name || "Document"}</span>
+      </a>
     </div>
   );
 }
@@ -156,11 +221,19 @@ export default function BookingsPage() {
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<"create" | "update" | "sendMail" | null>(null);
   const [docsLoading, setDocsLoading] = useState(false);
-  const [docBusy, setDocBusy] = useState<"aadhar" | "pan" | "passport" | "other" | null>(null);
+  const [docBusy, setDocBusy] = useState<DocField | null>(null);
   const [formErr, setFormErr] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrBusy, setQrBusy] = useState(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
+
+  // "View documents" modal — a separate, read-only view from the edit
+  // modal, so a user who can only edit their own bookings can still look at
+  // (and download) documents on any booking they're allowed to see.
+  const [viewBooking, setViewBooking] = useState<Booking | null>(null);
+  const [docActionBusy, setDocActionBusy] = useState<{ id: string; action: "view" | "download" } | null>(
+    null
+  );
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -342,9 +415,9 @@ export default function BookingsPage() {
       specialRequirements: b.specialRequirements || "",
       // listBookings() omits ID documents for performance — placeholder
       // here, filled in from the full record fetched just below.
-      aadharDoc: null,
-      panDoc: null,
-      passportDoc: null,
+      aadharDoc: [],
+      panDoc: [],
+      passportDoc: [],
       otherDocs: [],
     });
     setNewPayment({ amount: "", date: todayIso(), note: "" });
@@ -357,9 +430,9 @@ export default function BookingsPage() {
       if (editRequestId.current === requestId) {
         setForm((f) => ({
           ...f,
-          aadharDoc: full.aadharDoc ?? null,
-          panDoc: full.panDoc ?? null,
-          passportDoc: full.passportDoc ?? null,
+          aadharDoc: full.aadharDoc ?? [],
+          panDoc: full.panDoc ?? [],
+          passportDoc: full.passportDoc ?? [],
           otherDocs: full.otherDocs ?? [],
         }));
       }
@@ -416,29 +489,16 @@ export default function BookingsPage() {
     return { name: file.name, type: file.type, data };
   }
 
-  async function onSingleDocChange(
-    field: "aadharDoc" | "panDoc" | "passportDoc",
-    busyKey: "aadhar" | "pan" | "passport",
-    file: File | undefined
-  ) {
-    if (!file) return;
-    setDocBusy(busyKey);
-    try {
-      const doc = await fileToDoc(file);
-      setForm((f) => ({ ...f, [field]: doc }));
-    } catch {
-      notify("err", "Failed to read file");
-    } finally {
-      setDocBusy(null);
-    }
-  }
-
-  async function onOtherDocsChange(files: FileList | null) {
+  // Shared by all 4 document fields — each accepts one or many files,
+  // appended to whatever's already there (never replacing it, same reasoning
+  // as the day-image upload fix elsewhere in the app: a file input only ever
+  // reports what was picked in THIS dialog).
+  async function onDocFieldChange(field: DocField, files: FileList | null) {
     if (!files || files.length === 0) return;
-    setDocBusy("other");
+    setDocBusy(field);
     try {
       const docs = await Promise.all(Array.from(files).map(fileToDoc));
-      setForm((f) => ({ ...f, otherDocs: [...f.otherDocs, ...docs] }));
+      setForm((f) => ({ ...f, [field]: [...f[field], ...docs] }));
     } catch {
       notify("err", "Failed to read one or more files");
     } finally {
@@ -446,8 +506,116 @@ export default function BookingsPage() {
     }
   }
 
-  function removeOtherDoc(index: number) {
-    setForm((f) => ({ ...f, otherDocs: f.otherDocs.filter((_, i) => i !== index) }));
+  function removeDocAt(field: DocField, index: number) {
+    setForm((f) => ({ ...f, [field]: f[field].filter((_, i) => i !== index) }));
+  }
+
+  function renameDocAt(field: DocField, index: number, name: string) {
+    setForm((f) => ({
+      ...f,
+      [field]: f[field].map((d, i) => (i === index ? { ...d, name } : d)),
+    }));
+  }
+
+  type DocGroup = { label: string; docs: BookingDocument[] };
+
+  // Shared by the View modal and the download sheet, so the grouping/order
+  // (Aadhar → PAN → Passport → Other) only lives in one place.
+  function docGroups(b: Booking): DocGroup[] {
+    return [
+      { label: "Aadhar Card", docs: b.aadharDoc || [] },
+      { label: "PAN Card", docs: b.panDoc || [] },
+      { label: "Passport", docs: b.passportDoc || [] },
+      { label: "Other Documents", docs: b.otherDocs || [] },
+    ].filter((g) => g.docs.length > 0);
+  }
+
+  // One printable sheet with every document laid out on it, built the same
+  // way the invoice/itinerary PDFs are (an off-screen container rendered
+  // through html2canvas+jsPDF, auto-paginated by downloadItineraryPdf) —
+  // rather than triggering a separate download per file, which browsers
+  // routinely block/drop past the first couple when fired in one go, and
+  // which the user explicitly asked to be combined into one document.
+  // Image documents are embedded directly; a non-image upload (e.g. a PDF)
+  // can't be flattened into this image-based sheet, so it gets a labeled
+  // placeholder instead — those still need opening individually via the
+  // thumbnail's own link.
+  function buildDocsSheetHtml(b: Booking, groups: DocGroup[]): string {
+    const meta = [b.clientPhone, b.clientEmail].filter(Boolean).map(escapeHtml).join(" &middot; ");
+    let html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1e293b;width:800px;background:#ffffff;padding:28px;">`;
+    html += `<div style="border-bottom:3px solid #f2c14e;padding-bottom:14px;margin-bottom:18px;">
+      <div style="font-size:21px;font-weight:800;color:#10162a;">${escapeHtml(b.clientName || "Client")}</div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px;">${meta}</div>
+      <div style="font-size:13px;color:#64748b;">${escapeHtml(b.packageTitle || "")}</div>
+    </div>`;
+
+    groups.forEach((g) => {
+      html += `<div style="background:#10162a;color:#f2c14e;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:8px 14px;margin:16px 0 12px;border-radius:6px;">${escapeHtml(
+        g.label
+      )}</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:16px;">`;
+      g.docs.forEach((doc) => {
+        const isImage = doc.type.startsWith("image/");
+        html += `<div style="width:220px;text-align:center;">`;
+        html += isImage
+          ? `<img src="${doc.data}" style="width:220px;height:220px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;display:block;" />`
+          : `<div style="width:220px;height:220px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12.5px;color:#94a3b8;">Non-image file —<br/>open from the app to view</div>`;
+        html += `<div style="margin-top:6px;font-size:12px;color:#475569;">${escapeHtml(doc.name || "Document")}</div>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    });
+
+    html += `</div>`;
+    return html;
+  }
+
+  async function downloadDocsSheet(b: Booking, groups: DocGroup[]) {
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-10000px";
+    container.style.top = "0";
+    container.style.width = "800px";
+    container.innerHTML = buildDocsSheetHtml(b, groups);
+    document.body.appendChild(container);
+    try {
+      const filename = `documents-${(b.clientName || "booking").trim().replace(/\s+/g, "-").toLowerCase()}.pdf`;
+      await downloadItineraryPdf(container, filename, "download");
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
+  // List rows come from listBookings(), which excludes documents for
+  // performance (see the backend route) — both View and Download re-fetch
+  // the full booking first, same as openEdit does.
+  async function openViewDocs(b: Booking) {
+    setDocActionBusy({ id: b.id, action: "view" });
+    try {
+      setViewBooking(await api.getBooking(b.id));
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load documents");
+    } finally {
+      setDocActionBusy(null);
+    }
+  }
+
+  async function downloadAllDocs(b: Booking) {
+    setDocActionBusy({ id: b.id, action: "download" });
+    try {
+      const full = await api.getBooking(b.id);
+      const groups = docGroups(full);
+      if (groups.length === 0) {
+        notify("err", "No documents uploaded for this booking");
+        return;
+      }
+      await downloadDocsSheet(full, groups);
+      notify("ok", "Documents downloaded as one PDF");
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to download documents");
+    } finally {
+      setDocActionBusy(null);
+    }
   }
 
   function buildInvoiceInput() {
@@ -718,6 +886,32 @@ export default function BookingsPage() {
                       <div className={styles.actions}>
                         <button
                           className={styles.iconBtn}
+                          onClick={() => openViewDocs(b)}
+                          disabled={docActionBusy?.id === b.id}
+                          aria-label={`View documents for ${b.clientName}`}
+                          title="View documents"
+                        >
+                          {docActionBusy?.id === b.id && docActionBusy.action === "view" ? (
+                            <i className="fas fa-spinner fa-spin" />
+                          ) : (
+                            ViewIcon
+                          )}
+                        </button>
+                        <button
+                          className={styles.iconBtn}
+                          onClick={() => downloadAllDocs(b)}
+                          disabled={docActionBusy?.id === b.id}
+                          aria-label={`Download documents for ${b.clientName}`}
+                          title="Download all documents as one PDF"
+                        >
+                          {docActionBusy?.id === b.id && docActionBusy.action === "download" ? (
+                            <i className="fas fa-spinner fa-spin" />
+                          ) : (
+                            DownloadIcon
+                          )}
+                        </button>
+                        <button
+                          className={styles.iconBtn}
                           onClick={() => openEdit(b)}
                           aria-label={`Edit booking for ${b.clientName}`}
                           title="Edit"
@@ -856,57 +1050,44 @@ export default function BookingsPage() {
           Documents{docsLoading && <span className={styles.docsLoadingNote}> — loading existing files…</span>}
         </div>
         <div className={styles.row3}>
-          <div className={styles.field}>
-            <label htmlFor="b-doc-aadhar">Aadhar Card</label>
-            <input
-              id="b-doc-aadhar"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => {
-                void onSingleDocChange("aadharDoc", "aadhar", e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            {docBusy === "aadhar" && <div className={styles.docStatus}>Uploading…</div>}
-            {form.aadharDoc && (
-              <DocPreview doc={form.aadharDoc} onRemove={() => setForm((f) => ({ ...f, aadharDoc: null }))} />
-            )}
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="b-doc-pan">PAN Card</label>
-            <input
-              id="b-doc-pan"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => {
-                void onSingleDocChange("panDoc", "pan", e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            {docBusy === "pan" && <div className={styles.docStatus}>Uploading…</div>}
-            {form.panDoc && (
-              <DocPreview doc={form.panDoc} onRemove={() => setForm((f) => ({ ...f, panDoc: null }))} />
-            )}
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="b-doc-passport">Passport</label>
-            <input
-              id="b-doc-passport"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => {
-                void onSingleDocChange("passportDoc", "passport", e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            {docBusy === "passport" && <div className={styles.docStatus}>Uploading…</div>}
-            {form.passportDoc && (
-              <DocPreview
-                doc={form.passportDoc}
-                onRemove={() => setForm((f) => ({ ...f, passportDoc: null }))}
+          {(
+            [
+              { field: "aadharDoc" as const, id: "b-doc-aadhar", label: "Aadhar Card" },
+              { field: "panDoc" as const, id: "b-doc-pan", label: "PAN Card" },
+              { field: "passportDoc" as const, id: "b-doc-passport", label: "Passport" },
+            ]
+          ).map(({ field, id, label }) => (
+            <div className={styles.field} key={field}>
+              <label htmlFor={id}>{label}</label>
+              <input
+                id={id}
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                onChange={(e) => {
+                  void onDocFieldChange(field, e.target.files);
+                  e.target.value = "";
+                }}
               />
-            )}
-          </div>
+              {docBusy === field && <div className={styles.docStatus}>Uploading…</div>}
+              {form[field].length > 0 && (
+                <div className={styles.docGrid}>
+                  {form[field].map((doc, i) => (
+                    // Keyed by index, not doc.name — the name is what the
+                    // rename input edits, so keying on it changed the key
+                    // (and remounted the input, losing focus/cursor) on
+                    // every single keystroke. See DocPreview below.
+                    <DocPreview
+                      key={i}
+                      doc={doc}
+                      onRemove={() => removeDocAt(field, i)}
+                      onRename={(name) => renameDocAt(field, i, name)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
         <div className={styles.field}>
           <label htmlFor="b-doc-other">Upload files</label>
@@ -916,15 +1097,20 @@ export default function BookingsPage() {
             multiple
             accept="image/*,application/pdf"
             onChange={(e) => {
-              void onOtherDocsChange(e.target.files);
+              void onDocFieldChange("otherDocs", e.target.files);
               e.target.value = "";
             }}
           />
-          {docBusy === "other" && <div className={styles.docStatus}>Uploading…</div>}
+          {docBusy === "otherDocs" && <div className={styles.docStatus}>Uploading…</div>}
           {form.otherDocs.length > 0 && (
             <div className={styles.docGrid}>
               {form.otherDocs.map((doc, i) => (
-                <DocPreview key={`${doc.name}-${i}`} doc={doc} onRemove={() => removeOtherDoc(i)} />
+                <DocPreview
+                  key={i}
+                  doc={doc}
+                  onRemove={() => removeDocAt("otherDocs", i)}
+                  onRename={(name) => renameDocAt("otherDocs", i, name)}
+                />
               ))}
             </div>
           )}
@@ -1270,6 +1456,59 @@ export default function BookingsPage() {
               : "Send Mail"}
           </button>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!viewBooking}
+        onClose={() => setViewBooking(null)}
+        title="Booking documents"
+        maxWidth={640}
+      >
+        {viewBooking && (
+          <>
+            <div className={styles.viewDocsHeader}>
+              <div className={styles.bName}>
+                <span className={styles.bAvatar}>{viewBooking.clientName.slice(0, 2).toUpperCase()}</span>
+                <b>{viewBooking.clientName}</b>
+              </div>
+              <div className={styles.viewDocsMeta}>
+                {viewBooking.clientPhone}
+                {viewBooking.clientEmail ? ` · ${viewBooking.clientEmail}` : ""}
+              </div>
+              <div className={styles.viewDocsMeta}>{viewBooking.packageTitle || "No package"}</div>
+            </div>
+
+            {(() => {
+              const groups = docGroups(viewBooking);
+
+              if (groups.length === 0) {
+                return <div className={styles.docStatus}>No documents uploaded for this booking.</div>;
+              }
+
+              return groups.map((g) => (
+                <div key={g.label}>
+                  <div className={styles.sectionLabel}>{g.label}</div>
+                  <div className={styles.docGrid}>
+                    {g.docs.map((doc, i) => (
+                      <DocPreviewReadOnly key={i} doc={doc} />
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.submit}
+                onClick={() => downloadAllDocs(viewBooking)}
+                disabled={docActionBusy?.id === viewBooking.id}
+              >
+                <i className="fas fa-download" /> Download all as PDF
+              </button>
+            </div>
+          </>
+        )}
       </Modal>
     </>
   );
