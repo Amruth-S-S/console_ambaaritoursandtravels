@@ -181,7 +181,7 @@ function DocPreview({
 
 // Read-only counterpart for the "View documents" modal — no rename/remove,
 // just the preview + name + a link that opens/downloads the original.
-function DocPreviewReadOnly({ doc }: { doc: BookingDocument }) {
+function DocPreviewReadOnly({ doc, onDownload }: { doc: BookingDocument; onDownload: () => void }) {
   const isImage = doc.type.startsWith("image/");
   return (
     <div className={styles.docPreview}>
@@ -196,6 +196,15 @@ function DocPreviewReadOnly({ doc }: { doc: BookingDocument }) {
         )}
         <span className={styles.docName}>{doc.name || "Document"}</span>
       </a>
+      <button
+        type="button"
+        className={styles.docDownloadBtn}
+        onClick={onDownload}
+        aria-label={`Download ${doc.name || "document"}`}
+        title="Download this file"
+      >
+        <i className="fas fa-download" />
+      </button>
     </div>
   );
 }
@@ -586,6 +595,17 @@ export default function BookingsPage() {
     }
   }
 
+  // Single-file counterpart to downloadDocsSheet — just that one document,
+  // as its own original file (not flattened into the combined PDF).
+  function downloadSingleDoc(doc: BookingDocument) {
+    const a = document.createElement("a");
+    a.href = doc.data;
+    a.download = doc.name || "document";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
   // List rows come from listBookings(), which excludes documents for
   // performance (see the backend route) — both View and Download re-fetch
   // the full booking first, same as openEdit does.
@@ -616,6 +636,56 @@ export default function BookingsPage() {
     } finally {
       setDocActionBusy(null);
     }
+  }
+
+  // Every document as its own separate file, instead of combined onto one
+  // PDF sheet — the "Single images" choice in promptDownloadChoice below.
+  async function downloadAllDocsIndividually(b: Booking) {
+    setDocActionBusy({ id: b.id, action: "download" });
+    try {
+      const full = await api.getBooking(b.id);
+      const docs = docGroups(full).flatMap((g) => g.docs);
+      if (docs.length === 0) {
+        notify("err", "No documents uploaded for this booking");
+        return;
+      }
+      // Staggered rather than fired in one tick — several browsers block or
+      // silently drop a burst of programmatic downloads triggered together.
+      docs.forEach((doc, i) => window.setTimeout(() => downloadSingleDoc(doc), i * 200));
+      notify("ok", `Downloading ${docs.length} document${docs.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to download documents");
+    } finally {
+      setDocActionBusy(null);
+    }
+  }
+
+  // The row-level Download button asks which of the above the user wants,
+  // rather than guessing — persists until answered (no auto-dismiss timer),
+  // same as the delete confirmation below.
+  function promptDownloadChoice(b: Booking) {
+    window.clearTimeout(toastTimer.current);
+    setToast({
+      type: "choose",
+      text: `Download documents for ${b.clientName} as…`,
+      options: [
+        {
+          label: "All (PDF)",
+          onClick: () => {
+            setToast(null);
+            void downloadAllDocs(b);
+          },
+        },
+        {
+          label: "Single images",
+          onClick: () => {
+            setToast(null);
+            void downloadAllDocsIndividually(b);
+          },
+        },
+      ],
+      onCancel: () => setToast(null),
+    });
   }
 
   function buildInvoiceInput() {
@@ -899,10 +969,10 @@ export default function BookingsPage() {
                         </button>
                         <button
                           className={styles.iconBtn}
-                          onClick={() => downloadAllDocs(b)}
+                          onClick={() => promptDownloadChoice(b)}
                           disabled={docActionBusy?.id === b.id}
                           aria-label={`Download documents for ${b.clientName}`}
-                          title="Download all documents as one PDF"
+                          title="Download documents"
                         >
                           {docActionBusy?.id === b.id && docActionBusy.action === "download" ? (
                             <i className="fas fa-spinner fa-spin" />
@@ -1485,28 +1555,37 @@ export default function BookingsPage() {
                 return <div className={styles.docStatus}>No documents uploaded for this booking.</div>;
               }
 
-              return groups.map((g) => (
-                <div key={g.label}>
-                  <div className={styles.sectionLabel}>{g.label}</div>
-                  <div className={styles.docGrid}>
-                    {g.docs.map((doc, i) => (
-                      <DocPreviewReadOnly key={i} doc={doc} />
-                    ))}
+              return (
+                <>
+                  <div className={styles.sectionLabel}>Full — all documents in one file</div>
+                  <div className={styles.docFullSection}>
+                    <span>
+                      Every document below, combined onto one printable PDF sheet.
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.submit}
+                      onClick={() => downloadAllDocs(viewBooking)}
+                      disabled={docActionBusy?.id === viewBooking.id}
+                    >
+                      <i className="fas fa-download" /> Download as PDF
+                    </button>
                   </div>
-                </div>
-              ));
-            })()}
 
-            <div className={styles.modalActions}>
-              <button
-                type="button"
-                className={styles.submit}
-                onClick={() => downloadAllDocs(viewBooking)}
-                disabled={docActionBusy?.id === viewBooking.id}
-              >
-                <i className="fas fa-download" /> Download all as PDF
-              </button>
-            </div>
+                  <div className={styles.sectionLabel}>Single image — download individually</div>
+                  {groups.map((g) => (
+                    <div key={g.label}>
+                      <div className={styles.docGroupLabel}>{g.label}</div>
+                      <div className={styles.docGrid}>
+                        {g.docs.map((doc, i) => (
+                          <DocPreviewReadOnly key={i} doc={doc} onDownload={() => downloadSingleDoc(doc)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
           </>
         )}
       </Modal>

@@ -5,12 +5,16 @@ import styles from "./Toast.module.css";
 export type ToastState =
   | { type: "ok" | "err"; text: string }
   | { type: "confirm"; text: string; onConfirm: () => void; onCancel: () => void }
+  // A 2+-way prompt (e.g. "download as one PDF, or one file each?") — same
+  // persistent, no-auto-dismiss confirm styling, but with caller-labeled
+  // buttons instead of the fixed Cancel/Delete pair.
+  | { type: "choose"; text: string; options: { label: string; onClick: () => void }[]; onCancel: () => void }
   | null;
 
 export default function Toast({ toast }: { toast: ToastState }) {
   if (!toast) return null;
 
-  if (toast.type === "confirm") {
+  if (toast.type === "confirm" || toast.type === "choose") {
     return (
       <div className={styles.wrap}>
         <div className={`${styles.toast} ${styles.confirm}`}>
@@ -23,12 +27,27 @@ export default function Toast({ toast }: { toast: ToastState }) {
           </svg>
           <span>{toast.text}</span>
           <div className={styles.confirmActions}>
-            <button className={styles.confirmCancel} onClick={toast.onCancel}>
-              Cancel
-            </button>
-            <button className={styles.confirmDelete} onClick={toast.onConfirm}>
-              Delete
-            </button>
+            {toast.type === "choose" ? (
+              <>
+                {toast.options.map((opt) => (
+                  <button key={opt.label} className={styles.confirmChoice} onClick={opt.onClick}>
+                    {opt.label}
+                  </button>
+                ))}
+                <button className={styles.confirmCancel} onClick={toast.onCancel}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button className={styles.confirmCancel} onClick={toast.onCancel}>
+                  Cancel
+                </button>
+                <button className={styles.confirmDelete} onClick={toast.onConfirm}>
+                  Delete
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
