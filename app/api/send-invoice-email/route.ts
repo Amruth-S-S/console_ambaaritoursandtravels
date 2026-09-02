@@ -25,8 +25,10 @@ type BookingOut = {
   amount: string;
   adults: string;
   children: string;
+  infants: string;
   adultPrice: string;
   childPrice: string;
+  infantPrice: string;
   advancePayments: AdvancePayment[];
 };
 
@@ -37,13 +39,19 @@ function totalAdvancePaid(payments: AdvancePayment[] | undefined): number {
 // Same formula as computeInvoiceTotals().packagePrice in lib/invoice.ts,
 // reimplemented locally rather than imported — that module pulls in
 // itinerary.ts's browser-only PDF/canvas code, which isn't safe to load in
-// this Node serverless function.
-function packagePriceTotal(b: Pick<BookingOut, "adults" | "children" | "adultPrice" | "childPrice">): number {
+// this Node serverless function. Keep both in sync — infants were missing
+// from this formula entirely until now, same bug as the one just fixed in
+// lib/invoice.ts.
+function packagePriceTotal(
+  b: Pick<BookingOut, "adults" | "children" | "infants" | "adultPrice" | "childPrice" | "infantPrice">
+): number {
   const adults = Number(b.adults) || 0;
   const children = Number(b.children) || 0;
+  const infants = Number(b.infants) || 0;
   const adultPrice = Number(b.adultPrice) || 0;
   const childPrice = Number(b.childPrice) || 0;
-  return adults * adultPrice + children * childPrice;
+  const infantPrice = Number(b.infantPrice) || 0;
+  return adults * adultPrice + children * childPrice + infants * infantPrice;
 }
 
 function formatDate(iso: string): string {

@@ -17,8 +17,10 @@ export type InvoiceInput = {
   travelDate: string;
   adults: string;
   children: string;
+  infants: string;
   adultPrice: string;
   childPrice: string;
+  infantPrice: string;
   advancePayments: AdvancePayment[];
   invoiceNumber: string;
   invoiceDate: string;
@@ -30,18 +32,27 @@ function money(n: number): string {
   return n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
+// packagePrice was adults*adultPrice + children*childPrice only — infants
+// were never part of this formula at all, so entering an infant price never
+// moved the total anywhere this gets used: this summary box, the Package
+// Amount column, the downloadable/emailed invoice, and the admin
+// dashboard's revenue figures (all of which call this same function).
 export function computeInvoiceTotals(input: {
   adults: string;
   children: string;
+  infants: string;
   adultPrice: string;
   childPrice: string;
+  infantPrice: string;
   advancePayments: AdvancePayment[];
 }) {
   const adults = parseFloat(input.adults) || 0;
   const children = parseFloat(input.children) || 0;
+  const infants = parseFloat(input.infants) || 0;
   const adultPrice = parseFloat(input.adultPrice) || 0;
   const childPrice = parseFloat(input.childPrice) || 0;
-  const packagePrice = adults * adultPrice + children * childPrice;
+  const infantPrice = parseFloat(input.infantPrice) || 0;
+  const packagePrice = adults * adultPrice + children * childPrice + infants * infantPrice;
   const totalAdvance = input.advancePayments.reduce(
     (sum, p) => sum + (parseFloat(p.amount) || 0),
     0
@@ -52,15 +63,26 @@ export function computeInvoiceTotals(input: {
 function buildInvoiceHtml(input: InvoiceInput, qrDataUrl: string): string {
   const adults = parseFloat(input.adults) || 0;
   const children = parseFloat(input.children) || 0;
+  const infants = parseFloat(input.infants) || 0;
   const adultPrice = parseFloat(input.adultPrice) || 0;
   const childPrice = parseFloat(input.childPrice) || 0;
+  const infantPrice = parseFloat(input.infantPrice) || 0;
   const { packagePrice, totalAdvance, balanceDue } = computeInvoiceTotals(input);
 
-  const paxLabel = children > 0 ? `${adults}A ${children}C` : `${adults}A`;
-  const priceLine =
-    children > 0
-      ? `Adults: ${adults} &times; Rs. ${money(adultPrice)}/-, Children: ${children} &times; Rs. ${money(childPrice)}/-`
-      : `Adults: ${adults} &times; Rs. ${money(adultPrice)}/-`;
+  const paxLabel = [
+    `${adults}A`,
+    children > 0 ? `${children}C` : "",
+    infants > 0 ? `${infants}I` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const priceLine = [
+    `Adults: ${adults} &times; Rs. ${money(adultPrice)}/-`,
+    children > 0 ? `Children: ${children} &times; Rs. ${money(childPrice)}/-` : "",
+    infants > 0 ? `Infants: ${infants} &times; Rs. ${money(infantPrice)}/-` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const paymentRows = input.advancePayments.length
     ? input.advancePayments

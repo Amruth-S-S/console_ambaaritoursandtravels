@@ -353,11 +353,21 @@ export default function BookingsPage() {
       computeInvoiceTotals({
         adults: form.adults,
         children: form.children,
+        infants: form.infants,
         adultPrice: form.adultPrice,
         childPrice: form.childPrice,
+        infantPrice: form.infantPrice,
         advancePayments: form.advancePayments,
       }),
-    [form.adults, form.children, form.adultPrice, form.childPrice, form.advancePayments]
+    [
+      form.adults,
+      form.children,
+      form.infants,
+      form.adultPrice,
+      form.childPrice,
+      form.infantPrice,
+      form.advancePayments,
+    ]
   );
 
   async function openCreate() {
@@ -699,8 +709,10 @@ export default function BookingsPage() {
       travelDate: form.travelDate,
       adults: form.adults,
       children: form.children,
+      infants: form.infants,
       adultPrice: form.adultPrice,
       childPrice: form.childPrice,
+      infantPrice: form.infantPrice,
       advancePayments: form.advancePayments,
       invoiceNumber: form.invoiceNumber,
       invoiceDate: form.invoiceDate,
