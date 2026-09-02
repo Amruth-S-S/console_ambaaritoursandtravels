@@ -6,6 +6,7 @@ import { api, AdvancePayment, Booking, BookingDocument, Package, User } from "@/
 import { buildUpiScannerDataUrl } from "@/lib/upiQr";
 import { computeInvoiceTotals, downloadInvoicePdf, getInvoicePdfBlob } from "@/lib/invoice";
 import { downloadItineraryPdf, escapeHtml, readFileAsDataURL } from "@/lib/itinerary";
+import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
@@ -937,8 +938,8 @@ export default function BookingsPage() {
                   return (
                   <tr key={b.id}>
                     <td style={{ color: "var(--ink-dim)" }}>{b.invoiceNumber || "—"}</td>
-                    <td style={{ color: "var(--ink-dim)" }}>{b.invoiceDate || "—"}</td>
-                    <td style={{ color: "var(--ink-dim)" }}>{b.travelDate || "—"}</td>
+                    <td style={{ color: "var(--ink-dim)" }}>{formatDateDMY(b.invoiceDate) || "—"}</td>
+                    <td style={{ color: "var(--ink-dim)" }}>{formatDateDMY(b.travelDate) || "—"}</td>
                     <td>
                       <div className={styles.bName}>
                         <span className={styles.bAvatar}>
@@ -956,7 +957,7 @@ export default function BookingsPage() {
                     <td className={styles.amount}>
                       ₹ {t.balanceDue.toLocaleString("en-IN")}
                       <span className={styles.subDate}>
-                        Due by {b.finalPaymentDate || "—"}
+                        Due by {formatDateDMY(b.finalPaymentDate) || "—"}
                       </span>
                     </td>
                     {isAdmin && (
@@ -1401,7 +1402,7 @@ export default function BookingsPage() {
           <ul className={styles.paymentList}>
             {form.advancePayments.map((p, i) => (
               <li key={i}>
-                <span className={styles.paymentDate}>{p.date || "—"}</span>
+                <span className={styles.paymentDate}>{formatDateDMY(p.date) || "—"}</span>
                 <span className={styles.paymentNote}>{p.note || "—"}</span>
                 <span className={styles.paymentAmount}>₹ {p.amount}</span>
                 <button

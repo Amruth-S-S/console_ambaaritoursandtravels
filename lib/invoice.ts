@@ -1,6 +1,7 @@
 import { escapeHtml, BANK_DETAILS, downloadItineraryPdf } from "@/lib/itinerary";
 import { buildUpiScannerDataUrl, UPI_PAYEE_ID } from "@/lib/upiQr";
 import { AMBAARI_LOGO_BASE64 } from "@/lib/ambaariLogo";
+import { formatDateDMY } from "@/lib/dates";
 import type { AdvancePayment } from "@/lib/api";
 
 export const COMPANY_ADDRESS =
@@ -90,7 +91,7 @@ function buildInvoiceHtml(input: InvoiceInput, qrDataUrl: string): string {
           (p, i) => `<tr>
             <td class="num">${i + 1}</td>
             <td>Advance Payment ${i + 1}</td>
-            <td>${escapeHtml(p.date || "—")}</td>
+            <td>${escapeHtml(formatDateDMY(p.date) || "—")}</td>
             <td>${escapeHtml(p.note || "—")}</td>
             <td class="num">Rs. ${money(parseFloat(p.amount) || 0)}/-</td>
           </tr>`
@@ -113,8 +114,8 @@ function buildInvoiceHtml(input: InvoiceInput, qrDataUrl: string): string {
 
     <div class="invoice-meta-row">
       <div><span>Invoice No.</span><b>#${escapeHtml(input.invoiceNumber || "—")}</b></div>
-      <div><span>Invoice Date</span><b>${escapeHtml(input.invoiceDate || "—")}</b></div>
-      <div><span>Travel Date</span><b>${escapeHtml(input.travelDate || "—")}</b></div>
+      <div><span>Invoice Date</span><b>${escapeHtml(formatDateDMY(input.invoiceDate) || "—")}</b></div>
+      <div><span>Travel Date</span><b>${escapeHtml(formatDateDMY(input.travelDate) || "—")}</b></div>
     </div>
 
     <div class="invoice-block-title">Client Details</div>
@@ -138,7 +139,7 @@ function buildInvoiceHtml(input: InvoiceInput, qrDataUrl: string): string {
         <tr>
           <td>
             <div class="pkg-name">${escapeHtml(input.packageTitle || "Untitled package")}</div>
-            <div class="pkg-sub">Travel Date: ${escapeHtml(input.travelDate || "—")}</div>
+            <div class="pkg-sub">Travel Date: ${escapeHtml(formatDateDMY(input.travelDate) || "—")}</div>
             <div class="pkg-sub">${priceLine}</div>
           </td>
           <td class="num">Rs. ${money(adultPrice)}/-</td>
