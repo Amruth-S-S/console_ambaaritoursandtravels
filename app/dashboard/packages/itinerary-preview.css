@@ -262,6 +262,18 @@
   margin-bottom: 8px;
 }
 
+.itinerary-content .day-date {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .itinerary-content .day-item p {
   margin: 0;
   line-height: 1.85;

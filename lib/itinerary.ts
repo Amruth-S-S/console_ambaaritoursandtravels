@@ -1,5 +1,6 @@
 import type { PackageData, PackageDay } from "./api";
 import { AMBAARI_LOGO_BASE64 } from "./ambaariLogo";
+import { formatDateDMY } from "./dates";
 import {
   escapeHtml,
   hasForceBullet,
@@ -250,8 +251,15 @@ export function buildPreviewHtml(data: PackageData, scannerQr: string): string {
             .join("") +
           `</div>`;
       }
+      // Date is optional per day — the same saved package gets shown both
+      // with and without dates depending on the client (see the
+      // "Refresh Dates" button in the builder), so a blank date here just
+      // means this particular render leaves it off entirely.
+      const dateBadge = day.date
+        ? `<span class="day-date">${escapeHtml(formatDateDMY(day.date))}</span>`
+        : "";
       html += `<div class="day-item">
-        <h4>${escapeHtml(day.title || "Day")}</h4>
+        <h4>${escapeHtml(day.title || "Day")}${dateBadge}</h4>
         ${imagesHtml}
         ${toBulletList(day.desc)}
     </div>`;

@@ -13,7 +13,7 @@ import Toast, { ToastState } from "@/components/Toast";
 import "./itinerary-preview.css";
 import styles from "./packages.module.css";
 
-type DayState = { title: string; desc: string; images: DayImage[] };
+type DayState = { title: string; desc: string; date: string; images: DayImage[] };
 
 type FormState = {
   companyName: string;
@@ -69,7 +69,7 @@ function toPackageData(f: FormState): PackageData {
     // — each line is an HTML fragment (possibly containing <b>/highlight
     // spans) joined with <br>, not plain "\n" text.
     highlights: splitHtmlLines(f.highlightsText),
-    days: f.days.map((d) => ({ title: d.title.trim(), desc: d.desc.trim(), images: d.images })),
+    days: f.days.map((d) => ({ title: d.title.trim(), desc: d.desc.trim(), date: d.date, images: d.images })),
     inclusions: splitHtmlLines(f.inclusionsText),
     exclusions: splitHtmlLines(f.exclusionsText),
     adultPrice: f.adultPrice,
@@ -92,7 +92,7 @@ function fromPackageData(p: PackageData): FormState {
     packageType: p.packageType,
     duration: p.duration,
     highlightsText: joinHtmlLines(p.highlights),
-    days: p.days.map((d) => ({ title: d.title, desc: d.desc, images: d.images })),
+    days: p.days.map((d) => ({ title: d.title, desc: d.desc, date: d.date || "", images: d.images })),
     inclusionsText: joinHtmlLines(p.inclusions),
     exclusionsText: joinHtmlLines(p.exclusions),
     adultPrice: p.adultPrice,
@@ -110,27 +110,32 @@ const EXAMPLE_DAYS: DayState[] = [
   {
     title: "Day 1: Gorakhpur → Lumbini",
     desc: "Pickup from Gorakhpur\nScenic drive to Nepal\nHotel check-in & relaxation",
+    date: "",
     images: [],
   },
   {
     title: "Day 2: Lumbini → Pokhara",
     desc: "Visit Maya Devi Temple (Birthplace of Lord Buddha)\nDrive to Pokhara with scenic views",
+    date: "",
     images: [],
   },
   {
     title: "Day 3: Pokhara Sightseeing",
     desc:
       "Visit Bindhyabasini Temple\nExplore Devi's Fall & Gupteshwor Mahadev Cave\nView Seti River Gorge\nEnjoy Phewa Lake & Tal Barahi Temple",
+    date: "",
     images: [],
   },
   {
     title: "Day 4: Pokhara → Jomsom",
     desc: "Scenic Himalayan drive to Jomsom\nExperience breathtaking mountain landscapes",
+    date: "",
     images: [],
   },
   {
     title: "Day 5: Jomsom → Muktinath → Pokhara",
     desc: "Darshan at Muktinath Temple\nHoly 108 Dhara Snan\nReturn journey to Pokhara",
+    date: "",
     images: [],
   },
 ];
@@ -302,6 +307,52 @@ export default function PackagesPage() {
   const [infantNetProfitValue, setInfantNetProfitValue] = useState("");
   const [netProfitBusy, setNetProfitBusy] = useState(false);
 
+  // Currency exchange rates — unlike net profit, this is one shared,
+  // app-wide pair of values (not per-package), and visible to every user,
+  // not just admin. The icon lives on every card purely as a convenient
+  // place to reach it while quoting a package, not because it belongs to
+  // that specific package.
+  const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const [thaiRateValue, setThaiRateValue] = useState("");
+  const [malaysianRateValue, setMalaysianRateValue] = useState("");
+  const [currencyLoading, setCurrencyLoading] = useState(false);
+  const [currencyBusy, setCurrencyBusy] = useState(false);
+
+  async function openCurrencyRates() {
+    setCurrencyModalOpen(true);
+    setCurrencyLoading(true);
+    try {
+      const rates = await api.getCurrencyRates();
+      setThaiRateValue(rates.thaiRate);
+      setMalaysianRateValue(rates.malaysianRate);
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to load exchange rates");
+    } finally {
+      setCurrencyLoading(false);
+    }
+  }
+
+  function closeCurrencyRates() {
+    if (currencyBusy) return;
+    setCurrencyModalOpen(false);
+  }
+
+  async function saveCurrencyRates() {
+    setCurrencyBusy(true);
+    try {
+      await api.updateCurrencyRates({
+        thaiRate: thaiRateValue.trim(),
+        malaysianRate: malaysianRateValue.trim(),
+      });
+      notify("ok", "Exchange rates saved");
+      setCurrencyModalOpen(false);
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to save exchange rates");
+    } finally {
+      setCurrencyBusy(false);
+    }
+  }
+
   function notify(type: "ok" | "err", text: string) {
     window.clearTimeout(toastTimer.current);
     setToast({ type, text });
@@ -335,7 +386,7 @@ export default function PackagesPage() {
   }
 
   function addDay() {
-    setForm((f) => ({ ...f, days: [...f.days, { title: "", desc: "", images: [] }] }));
+    setForm((f) => ({ ...f, days: [...f.days, { title: "", desc: "", date: "", images: [] }] }));
   }
 
   function removeDay(idx: number) {
@@ -347,6 +398,33 @@ export default function PackagesPage() {
       ...f,
       days: f.days.map((d, i) => (i === idx ? { ...d, ...patch } : d)),
     }));
+  }
+
+  // Same package is often shown both with and without per-day dates
+  // depending on the client — this clears every day's date in one go
+  // (titles/descriptions/images untouched) instead of blanking each date
+  // field by hand.
+  function clearAllDayDates() {
+    if (form.days.every((d) => !d.date)) {
+      notify("err", "No dates entered yet");
+      return;
+    }
+    window.clearTimeout(toastTimer.current);
+    setToast({
+      type: "choose",
+      text: "Clear the date from every day? Titles, descriptions, and images are untouched.",
+      options: [
+        {
+          label: "Clear Dates",
+          onClick: () => {
+            setToast(null);
+            setForm((f) => ({ ...f, days: f.days.map((d) => ({ ...d, date: "" })) }));
+            notify("ok", "Day dates cleared");
+          },
+        },
+      ],
+      onCancel: () => setToast(null),
+    });
   }
 
   // Appends to whatever images this day already has, rather than replacing
@@ -677,6 +755,47 @@ export default function PackagesPage() {
         </Modal>
       )}
 
+      {/* Shared app-wide rates, not tied to any one package — no isAdmin
+          gate, unlike Net Profit above, since every user can see and edit
+          these. */}
+      <Modal open={currencyModalOpen} onClose={closeCurrencyRates} title="Currency exchange rates">
+        {currencyLoading ? (
+          <div className={styles.npField}>Loading…</div>
+        ) : (
+          <>
+            <div className={styles.npField}>
+              <label htmlFor="cur-thai">Thai currency exchange rate</label>
+              <input
+                id="cur-thai"
+                type="text"
+                value={thaiRateValue}
+                placeholder="e.g. 1 THB = 2.45 INR"
+                onChange={(e) => setThaiRateValue(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className={styles.npField}>
+              <label htmlFor="cur-malaysian">Malaysian currency exchange rate</label>
+              <input
+                id="cur-malaysian"
+                type="text"
+                value={malaysianRateValue}
+                placeholder="e.g. 1 MYR = 19.80 INR"
+                onChange={(e) => setMalaysianRateValue(e.target.value)}
+              />
+            </div>
+            <div className={styles.npActions}>
+              <button className={styles.npCancelBtn} onClick={closeCurrencyRates} disabled={currencyBusy}>
+                Cancel
+              </button>
+              <button className={styles.npSaveBtn} onClick={saveCurrencyRates} disabled={currencyBusy}>
+                {currencyBusy ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
+
       <div className={styles.page}>
         {view === "list" ? (
           <>
@@ -762,6 +881,13 @@ export default function PackagesPage() {
                               <i className="fas fa-chart-line" />
                             </button>
                           )}
+                          <button
+                            className={styles.iconBtn}
+                            onClick={openCurrencyRates}
+                            title="Currency exchange rates"
+                          >
+                            <i className="fas fa-money-bill-wave" />
+                          </button>
                           <button
                             className={styles.iconBtn}
                             onClick={() => openQuickPreview(p)}
@@ -873,6 +999,14 @@ export default function PackagesPage() {
                 Day-by-Day Plan{" "}
                 <button className={`${styles.btn} ${styles.btnSm} ${styles.btnSuccess}`} type="button" onClick={addDay}>
                   <i className="fas fa-plus" /> Add Day
+                </button>{" "}
+                <button
+                  className={`${styles.btn} ${styles.btnSm} ${styles.btnOutline}`}
+                  type="button"
+                  onClick={clearAllDayDates}
+                  title="Clear every day's date (titles, descriptions and images stay) — for showing this same itinerary without dates"
+                >
+                  <i className="fas fa-rotate-left" /> Refresh Dates
                 </button>
               </label>
               <div>
@@ -892,6 +1026,14 @@ export default function PackagesPage() {
                         value={day.title}
                         placeholder="e.g. Day 1: Bangkok Arrival"
                         onChange={(e) => updateDay(idx, { title: e.target.value })}
+                      />
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label>Date (optional — leave blank to show no date for this day)</label>
+                      <input
+                        type="date"
+                        value={day.date}
+                        onChange={(e) => updateDay(idx, { date: e.target.value })}
                       />
                     </div>
                     <div className={styles.formGroup}>

@@ -8,6 +8,16 @@ const API =
     ? "https://console-backend-two.vercel.app"
     : "http://localhost:8000");
 
+// Shared, app-wide (not per-package) currency exchange rates — one pair of
+// values every user can view/update via the currency icon on any package
+// card, for quick reference while quoting Thailand/Malaysia packages.
+export type CurrencyRates = {
+  thaiRate: string;
+  malaysianRate: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
 export type User = {
   id: string;
   name: string;
@@ -24,6 +34,9 @@ export type DayImage = {
 export type PackageDay = {
   title: string;
   desc: string;
+  // Optional — blank means "don't show a date for this day" (the same
+  // package is often reused both with and without dates per client).
+  date: string;
   images: DayImage[];
 };
 
@@ -301,4 +314,11 @@ export const api = {
     }),
   deleteBooking: (id: string) =>
     request<void>(`/bookings/${id}`, { method: "DELETE" }),
+
+  getCurrencyRates: () => request<CurrencyRates>("/settings/currency-rates"),
+  updateCurrencyRates: (body: { thaiRate: string; malaysianRate: string }) =>
+    request<CurrencyRates>("/settings/currency-rates", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 };
