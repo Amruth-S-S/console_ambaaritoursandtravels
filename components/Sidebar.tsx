@@ -127,7 +127,7 @@ export default function Sidebar() {
       <div className={styles.spacer} />
 
       <div className={styles.badge}>
-        Signed in as
+        Signed in ass
         <strong>{user?.role}</strong>
       </div>
     </nav>
