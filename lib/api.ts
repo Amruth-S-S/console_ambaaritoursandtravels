@@ -24,6 +24,70 @@ export type User = {
   email: string;
   phone: string | null;
   role: "admin" | "user";
+  // Admin-assigned custom role from the Roles page — a label distinct from
+  // `role` above (which stays the actual admin/user access-control value).
+  // Empty string means unassigned.
+  roleId: string;
+  // Resolved server-side from roleId at login/list time — e.g. "Account",
+  // used to gate the Account menu without a separate roles fetch.
+  roleName: string;
+};
+
+// Admin-managed role names — a separate list from the hardcoded
+// admin/user access-control role above; this is just the name for now.
+export type Role = {
+  id: string;
+  name: string;
+  createdAt: string;
+};
+
+// Accounts ledger — visible on the Account menu (admin + users whose
+// assigned custom role is named "Account"). Approval can only be flipped
+// by an admin; everyone else who can see the ledger sees it read-only.
+export type AccountEntryInput = {
+  slNo: string;
+  date: string;
+  invoiceNo: string;
+  agent: string;
+  clientName: string;
+  destination: string;
+  handOverTo: string;
+  debitCredit: string;
+  balance: string;
+  paymentMode: string;
+  description: string;
+};
+
+export type AccountEntry = AccountEntryInput & {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  approved: boolean;
+};
+
+// Currency exchange ledger — visible on the Currency menu (admin + users
+// whose assigned custom role is named "Currency"). Same approval pattern
+// as AccountEntry above — admin flips it, everyone else sees it read-only.
+// Distinct from CurrencyRates above (one global Thai/Malaysian rate pair) —
+// this is a per-client exchange record.
+export type CurrencyEntryInput = {
+  slNo: string;
+  travelDate: string;
+  passportNumber: string;
+  clientName: string;
+  phoneNumber: string;
+  currency: string;
+  amount: string;
+  clientAmount: string;
+  currencyConversion: string;
+  handOverTo: string;
+};
+
+export type CurrencyEntry = CurrencyEntryInput & {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  approved: boolean;
 };
 
 export type DayImage = {
@@ -225,20 +289,25 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   listUsers: () => request<User[]>("/users"),
-  createUser: (name: string, email: string, phone: string, password: string) =>
+  createUser: (name: string, email: string, phone: string, password: string, roleId: string) =>
     request<User>("/users", {
       method: "POST",
-      body: JSON.stringify({ name, email, phone: phone || null, password }),
+      body: JSON.stringify({ name, email, phone: phone || null, password, roleId }),
     }),
-  updateUser: (id: string, body: { name: string; email: string; phone: string; password?: string }) =>
+  updateUser: (
+    id: string,
+    body: { name: string; email: string; phone: string; password?: string; roleId: string }
+  ) =>
     request<User>(`/users/${id}`, {
       method: "PUT",
       // Omit password entirely when blank — the backend only resets it when
-      // the field is actually present in the request body.
+      // the field is actually present in the request body. roleId is always
+      // sent (even "") so it can be cleared, unlike password.
       body: JSON.stringify({
         name: body.name,
         email: body.email,
         phone: body.phone || null,
+        roleId: body.roleId,
         ...(body.password ? { password: body.password } : {}),
       }),
     }),
@@ -292,6 +361,12 @@ export const api = {
   },
 
   listBookings: () => request<Booking[]>("/bookings"),
+  // Name + phone only, across EVERY booking company-wide — unlike
+  // listBookings() above (filtered to what this account created/is
+  // assigned to for non-admins), this is what the Account and Currency
+  // ledgers' client dropdowns use, since staff who only do ledger entry
+  // work typically have no bookings of their own to filter down to.
+  getClientDirectory: () => request<{ clientName: string; clientPhone: string }[]>("/bookings/clients"),
   // Full record including ID documents, which listBookings() excludes for
   // list-view performance — used before opening the edit form so previously
   // uploaded Aadhar/PAN/Passport/other files are visible again.
@@ -321,4 +396,41 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  listRoles: () => request<Role[]>("/roles"),
+  createRole: (name: string) =>
+    request<Role>("/roles", { method: "POST", body: JSON.stringify({ name }) }),
+  updateRole: (id: string, name: string) =>
+    request<Role>(`/roles/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
+  deleteRole: (id: string) => request<void>(`/roles/${id}`, { method: "DELETE" }),
+
+  listAccounts: () => request<AccountEntry[]>("/accounts"),
+  // Computed server-side against the whole collection, same reasoning as
+  // getNextInvoiceNumber — stays one continuous sequence regardless of
+  // which account/admin is logged in.
+  getNextSlNo: () => request<{ slNo: string }>("/accounts/next-sl-no"),
+  createAccount: (body: AccountEntryInput) =>
+    request<AccountEntry>("/accounts", { method: "POST", body: JSON.stringify(body) }),
+  setAccountApproval: (id: string, approved: boolean) =>
+    request<AccountEntry>(`/accounts/${id}/approval`, {
+      method: "PUT",
+      body: JSON.stringify({ approved }),
+    }),
+  updateAccount: (id: string, body: AccountEntryInput) =>
+    request<AccountEntry>(`/accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteAccount: (id: string) => request<void>(`/accounts/${id}`, { method: "DELETE" }),
+
+  listCurrencyEntries: () => request<CurrencyEntry[]>("/currency-entries"),
+  getNextCurrencySlNo: () => request<{ slNo: string }>("/currency-entries/next-sl-no"),
+  createCurrencyEntry: (body: CurrencyEntryInput) =>
+    request<CurrencyEntry>("/currency-entries", { method: "POST", body: JSON.stringify(body) }),
+  setCurrencyApproval: (id: string, approved: boolean) =>
+    request<CurrencyEntry>(`/currency-entries/${id}/approval`, {
+      method: "PUT",
+      body: JSON.stringify({ approved }),
+    }),
+  updateCurrencyEntry: (id: string, body: CurrencyEntryInput) =>
+    request<CurrencyEntry>(`/currency-entries/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteCurrencyEntry: (id: string) =>
+    request<void>(`/currency-entries/${id}`, { method: "DELETE" }),
 };

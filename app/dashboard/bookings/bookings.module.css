@@ -133,6 +133,10 @@
 
 .tableScroll {
   overflow-x: auto;
+  /* No vertical height cap — pagination already bounds this to 10 rows, so
+     capping the height here just crammed those 10 rows into a short,
+     separately-scrolling box for no benefit. Plain horizontal scroll only;
+     the page itself scrolls normally past all 10 rows plus pagination. */
 }
 
 .table {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { api, User } from "@/lib/api";
+import { api, Role, User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
@@ -55,14 +55,15 @@ const EyeOffIcon = (
   </svg>
 );
 
-type FormState = { name: string; email: string; phone: string; password: string };
-const emptyForm: FormState = { name: "", email: "", phone: "", password: "" };
+type FormState = { name: string; email: string; phone: string; password: string; roleId: string };
+const emptyForm: FormState = { name: "", email: "", phone: "", password: "", roleId: "" };
 
 export default function UsersPage() {
   const { user } = useAuth();
   const router = useRouter();
 
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [search, setSearch] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -98,6 +99,9 @@ export default function UsersPage() {
     } finally {
       setLoaded(true);
     }
+    // Best-effort — the role dropdown just shows fewer options / the table
+    // falls back to showing nothing for a role name if this fails.
+    api.listRoles().then(setRoles).catch(() => {});
   }
 
   useEffect(() => {
@@ -127,7 +131,7 @@ export default function UsersPage() {
   function openEdit(u: User) {
     setMode("edit");
     setEditingId(u.id);
-    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "" });
+    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", roleId: u.roleId || "" });
     setFormErr("");
     setShowPassword(false);
     setModalOpen(true);
@@ -147,7 +151,8 @@ export default function UsersPage() {
           form.name.trim(),
           form.email.trim(),
           form.phone.trim(),
-          form.password
+          form.password,
+          form.roleId
         );
         notify("ok", `Created ${created.name}`);
       } else if (editingId) {
@@ -156,6 +161,7 @@ export default function UsersPage() {
           email: form.email.trim(),
           phone: form.phone.trim(),
           password: form.password.trim(),
+          roleId: form.roleId,
         });
         notify("ok", `Updated ${updated.name}`);
       }
@@ -237,6 +243,7 @@ export default function UsersPage() {
                   <th>Email</th>
                   <th>Phone</th>
                   <th>Role</th>
+                  <th>Assigned Role</th>
                   <th></th>
                 </tr>
               </thead>
@@ -261,6 +268,9 @@ export default function UsersPage() {
                       >
                         {u.role}
                       </span>
+                    </td>
+                    <td style={{ color: "var(--ink-dim)" }}>
+                      {roles.find((r) => r.id === u.roleId)?.name || "—"}
                     </td>
                     <td>
                       <div className={styles.actions}>
@@ -331,6 +341,21 @@ export default function UsersPage() {
             placeholder="+1 555 123 4567"
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
+        </div>
+        <div className={styles.field}>
+          <label htmlFor="m-role">Role</label>
+          <select
+            id="m-role"
+            value={form.roleId}
+            onChange={(e) => setForm({ ...form, roleId: e.target.value })}
+          >
+            <option value="">No role</option>
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className={styles.field}>
           <label htmlFor="m-password">

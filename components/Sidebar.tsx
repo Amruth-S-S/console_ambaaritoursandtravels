@@ -12,6 +12,10 @@ type Item = {
   href: string;
   icon: React.ReactNode;
   adminOnly?: boolean;
+  // Also visible to a non-admin whose assigned custom role name (from the
+  // Roles page) case-insensitively matches one of these — e.g. the Account
+  // menu, visible to admin AND anyone assigned the "Account" role.
+  roleNames?: string[];
 };
 
 const HomeIcon = (
@@ -49,6 +53,33 @@ const BookingsIcon = (
   </svg>
 );
 
+const RoleIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path
+      d="M12 3 4 6.5v5c0 4.7 3.2 8.6 8 9.5 4.8-.9 8-4.8 8-9.5v-5L12 3Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M9 12.2 11.2 14.5 15.5 10" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const AccountIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="6" width="18" height="13" rx="2.5" />
+    <path d="M3 10h18" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M7 14.5h4" strokeLinecap="round" />
+    <circle cx="17" cy="14.5" r="1.3" />
+  </svg>
+);
+
+const CurrencyIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5v9M14.7 9.7c0-1.1-1.2-2-2.7-2s-2.7.8-2.7 1.8c0 1.1.9 1.5 2.7 1.9 1.9.4 2.9.9 2.9 2 0 1-1.2 1.9-2.9 1.9s-2.9-.8-2.9-1.9" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ChevronIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
@@ -60,6 +91,9 @@ const items: Item[] = [
   { label: "Packages", href: "/dashboard/packages", icon: PackagesIcon },
   { label: "Bookings", href: "/dashboard/bookings", icon: BookingsIcon },
   { label: "Users", href: "/dashboard/users", icon: UsersIcon, adminOnly: true },
+  { label: "Roles", href: "/dashboard/roles", icon: RoleIcon, adminOnly: true },
+  { label: "Account", href: "/dashboard/accounts", icon: AccountIcon, roleNames: ["account"] },
+  { label: "Currency", href: "/dashboard/currency", icon: CurrencyIcon, roleNames: ["currency"] },
 ];
 
 export default function Sidebar() {
@@ -82,7 +116,13 @@ export default function Sidebar() {
     });
   }
 
-  const visible = items.filter((i) => !i.adminOnly || isAdmin);
+  const userRoleName = (user?.roleName || "").trim().toLowerCase();
+  const visible = items.filter((i) => {
+    if (isAdmin) return true;
+    if (i.adminOnly) return false;
+    if (i.roleNames) return i.roleNames.includes(userRoleName);
+    return true;
+  });
 
   return (
     <nav className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
