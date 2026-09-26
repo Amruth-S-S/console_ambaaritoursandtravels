@@ -80,7 +80,9 @@ export default function AccountsPage() {
   // Same "Account" role check as Sidebar's menu gate — a direct URL visit
   // shouldn't reach this page for anyone else, even though the backend
   // itself is the real enforcement (see routes/accounts.py).
-  const isAccountRole = (user?.roleName || "").trim().toLowerCase() === "account";
+  const isAccountRole = (user?.roleNames || []).some(
+    (rn) => rn.trim().toLowerCase() === "account"
+  );
   const allowed = isAdmin || isAccountRole;
 
   const [entries, setEntries] = useState<AccountEntry[]>([]);
@@ -99,9 +101,25 @@ export default function AccountsPage() {
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
+  // Defaults to fully allowed (matches the backend's default — see
+  // routes/access.py) so buttons don't flash-hide before this resolves.
+  // Admin never fetches this; they're never restricted.
+  const [perms, setPerms] = useState({ create: true, edit: true, delete: true });
+
   useEffect(() => {
     if (user && !allowed) router.replace("/dashboard");
   }, [user, allowed, router]);
+
+  useEffect(() => {
+    if (!allowed || isAdmin) return;
+    api
+      .getMyAccess()
+      .then((info) => {
+        const g = info.grants.find((g) => g.roleName.trim().toLowerCase() === "account");
+        if (g) setPerms({ create: g.create, edit: g.edit, delete: g.delete });
+      })
+      .catch(() => {});
+  }, [allowed, isAdmin]);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -267,9 +285,11 @@ export default function AccountsPage() {
                   placeholder="Search by agent, client, destination…"
                 />
               </div>
-              <button className={styles.createBtn} onClick={openCreate}>
-                + Add Entry
-              </button>
+              {(isAdmin || perms.create) && (
+                <button className={styles.createBtn} onClick={openCreate}>
+                  + Add Entry
+                </button>
+              )}
             </div>
           </div>
 
@@ -345,22 +365,26 @@ export default function AccountsPage() {
                       </td>
                       <td>
                         <div className={styles.actions}>
-                          <button
-                            className={styles.iconBtn}
-                            onClick={() => openEdit(e)}
-                            aria-label="Edit entry"
-                            title="Edit"
-                          >
-                            {EditIcon}
-                          </button>
-                          <button
-                            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                            onClick={() => onDelete(e)}
-                            aria-label="Delete entry"
-                            title="Delete"
-                          >
-                            {DeleteIcon}
-                          </button>
+                          {(isAdmin || perms.edit) && (
+                            <button
+                              className={styles.iconBtn}
+                              onClick={() => openEdit(e)}
+                              aria-label="Edit entry"
+                              title="Edit"
+                            >
+                              {EditIcon}
+                            </button>
+                          )}
+                          {(isAdmin || perms.delete) && (
+                            <button
+                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                              onClick={() => onDelete(e)}
+                              aria-label="Delete entry"
+                              title="Delete"
+                            >
+                              {DeleteIcon}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

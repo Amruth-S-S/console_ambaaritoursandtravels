@@ -24,13 +24,14 @@ export type User = {
   email: string;
   phone: string | null;
   role: "admin" | "user";
-  // Admin-assigned custom role from the Roles page — a label distinct from
+  // Admin-assigned custom roles from the Roles page — labels distinct from
   // `role` above (which stays the actual admin/user access-control value).
-  // Empty string means unassigned.
-  roleId: string;
-  // Resolved server-side from roleId at login/list time — e.g. "Account",
-  // used to gate the Account menu without a separate roles fetch.
-  roleName: string;
+  // A person can hold several at once (e.g. both "Account" and "Currency");
+  // empty array means unassigned.
+  roleIds: string[];
+  // Resolved server-side from roleIds at login/list time — e.g. ["Account"],
+  // used to gate menus/pages without a separate roles fetch.
+  roleNames: string[];
 };
 
 // Admin-managed role names — a separate list from the hardcoded
@@ -88,6 +89,24 @@ export type CurrencyEntry = CurrencyEntryInput & {
   createdAt: string;
   createdBy: string;
   approved: boolean;
+};
+
+// Per-user, per-role granular CRUD permissions — a finer dial than just
+// having the Account/Currency role at all. Only roles that gate a real
+// list/create/edit/delete feature show up here (see GOVERNED_ROLES in
+// routes/access.py); a role with no grant yet defaults to fully allowed.
+export type AccessGrant = {
+  roleName: string;
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+};
+
+export type AccessInfo = {
+  userId: string;
+  userName: string;
+  grants: AccessGrant[];
 };
 
 export type DayImage = {
@@ -290,25 +309,25 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   listUsers: () => request<User[]>("/users"),
-  createUser: (name: string, email: string, phone: string, password: string, roleId: string) =>
+  createUser: (name: string, email: string, phone: string, password: string, roleIds: string[]) =>
     request<User>("/users", {
       method: "POST",
-      body: JSON.stringify({ name, email, phone: phone || null, password, roleId }),
+      body: JSON.stringify({ name, email, phone: phone || null, password, roleIds }),
     }),
   updateUser: (
     id: string,
-    body: { name: string; email: string; phone: string; password?: string; roleId: string }
+    body: { name: string; email: string; phone: string; password?: string; roleIds: string[] }
   ) =>
     request<User>(`/users/${id}`, {
       method: "PUT",
       // Omit password entirely when blank — the backend only resets it when
-      // the field is actually present in the request body. roleId is always
-      // sent (even "") so it can be cleared, unlike password.
+      // the field is actually present in the request body. roleIds is
+      // always sent (even []) so it can be cleared, unlike password.
       body: JSON.stringify({
         name: body.name,
         email: body.email,
         phone: body.phone || null,
-        roleId: body.roleId,
+        roleIds: body.roleIds,
         ...(body.password ? { password: body.password } : {}),
       }),
     }),
@@ -434,4 +453,14 @@ export const api = {
     request<CurrencyEntry>(`/currency-entries/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteCurrencyEntry: (id: string) =>
     request<void>(`/currency-entries/${id}`, { method: "DELETE" }),
+
+  // Self-service — any logged-in account can read its own grants, used to
+  // hide buttons for actions that would just 403 anyway.
+  getMyAccess: () => request<AccessInfo>("/access/me"),
+  getAccess: (userId: string) => request<AccessInfo>(`/access/${userId}`),
+  setAccess: (userId: string, grants: AccessGrant[]) =>
+    request<AccessInfo>(`/access/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify({ grants }),
+    }),
 };

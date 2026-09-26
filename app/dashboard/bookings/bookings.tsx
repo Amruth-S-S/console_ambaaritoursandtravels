@@ -217,7 +217,9 @@ export default function BookingsPage() {
   // list_bookings) but can only edit/delete ones they personally created —
   // enforced again here so the buttons aren't even shown for rows the
   // backend would reject with a 404.
-  const isTeamLead = (user?.roleName || "").trim().toLowerCase() === "team lead";
+  const isTeamLead = (user?.roleNames || []).some(
+    (rn) => rn.trim().toLowerCase() === "team lead"
+  );
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);

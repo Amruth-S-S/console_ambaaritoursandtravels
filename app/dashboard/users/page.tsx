@@ -55,8 +55,14 @@ const EyeOffIcon = (
   </svg>
 );
 
-type FormState = { name: string; email: string; phone: string; password: string; roleId: string };
-const emptyForm: FormState = { name: "", email: "", phone: "", password: "", roleId: "" };
+const ChevronDownIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+type FormState = { name: string; email: string; phone: string; password: string; roleIds: string[] };
+const emptyForm: FormState = { name: "", email: "", phone: "", password: "", roleIds: [] };
 
 export default function UsersPage() {
   const { user } = useAuth();
@@ -74,6 +80,8 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const roleMenuRef = useRef<HTMLDivElement>(null);
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -82,6 +90,28 @@ export default function UsersPage() {
   useEffect(() => {
     if (user && user.role !== "admin") router.replace("/dashboard");
   }, [user, router]);
+
+  // Close the role checklist when clicking anywhere outside it — same
+  // pattern as any other custom dropdown, since it isn't a native <select>.
+  useEffect(() => {
+    if (!roleMenuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) {
+        setRoleMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [roleMenuOpen]);
+
+  function toggleFormRole(roleId: string) {
+    setForm((f) => ({
+      ...f,
+      roleIds: f.roleIds.includes(roleId)
+        ? f.roleIds.filter((id) => id !== roleId)
+        : [...f.roleIds, roleId],
+    }));
+  }
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -125,20 +155,23 @@ export default function UsersPage() {
     setForm(emptyForm);
     setFormErr("");
     setShowPassword(false);
+    setRoleMenuOpen(false);
     setModalOpen(true);
   }
 
   function openEdit(u: User) {
     setMode("edit");
     setEditingId(u.id);
-    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", roleId: u.roleId || "" });
+    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", roleIds: u.roleIds || [] });
     setFormErr("");
     setShowPassword(false);
+    setRoleMenuOpen(false);
     setModalOpen(true);
   }
 
   function closeModal() {
     if (busy) return;
+    setRoleMenuOpen(false);
     setModalOpen(false);
   }
 
@@ -152,7 +185,7 @@ export default function UsersPage() {
           form.email.trim(),
           form.phone.trim(),
           form.password,
-          form.roleId
+          form.roleIds
         );
         notify("ok", `Created ${created.name}`);
       } else if (editingId) {
@@ -161,7 +194,7 @@ export default function UsersPage() {
           email: form.email.trim(),
           phone: form.phone.trim(),
           password: form.password.trim(),
-          roleId: form.roleId,
+          roleIds: form.roleIds,
         });
         notify("ok", `Updated ${updated.name}`);
       }
@@ -270,7 +303,7 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td style={{ color: "var(--ink-dim)" }}>
-                      {roles.find((r) => r.id === u.roleId)?.name || "—"}
+                      {u.roleNames.length > 0 ? u.roleNames.join(", ") : "—"}
                     </td>
                     <td>
                       <div className={styles.actions}>
@@ -343,19 +376,50 @@ export default function UsersPage() {
           />
         </div>
         <div className={styles.field}>
-          <label htmlFor="m-role">Role</label>
-          <select
-            id="m-role"
-            value={form.roleId}
-            onChange={(e) => setForm({ ...form, roleId: e.target.value })}
-          >
-            <option value="">No role</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="m-role">Roles</label>
+          <div className={styles.multiSelect} ref={roleMenuRef}>
+            <button
+              type="button"
+              id="m-role"
+              className={styles.multiSelectTrigger}
+              onClick={() => setRoleMenuOpen((v) => !v)}
+              aria-expanded={roleMenuOpen}
+            >
+              <span className={styles.multiSelectValue}>
+                {form.roleIds.length === 0
+                  ? "No role"
+                  : roles
+                      .filter((r) => form.roleIds.includes(r.id))
+                      .map((r) => r.name)
+                      .join(", ")}
+              </span>
+              <span
+                className={`${styles.multiSelectChevron} ${
+                  roleMenuOpen ? styles.multiSelectChevronOpen : ""
+                }`}
+              >
+                {ChevronDownIcon}
+              </span>
+            </button>
+            {roleMenuOpen && (
+              <div className={styles.multiSelectPanel}>
+                {roles.length === 0 ? (
+                  <div className={styles.multiSelectEmpty}>No roles created yet</div>
+                ) : (
+                  roles.map((r) => (
+                    <label key={r.id} className={styles.multiSelectOption}>
+                      <input
+                        type="checkbox"
+                        checked={form.roleIds.includes(r.id)}
+                        onChange={() => toggleFormRole(r.id)}
+                      />
+                      {r.name}
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className={styles.field}>
           <label htmlFor="m-password">

@@ -86,6 +86,14 @@ const CurrencyIcon = (
   </svg>
 );
 
+const AccessIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="4" y="10.5" width="16" height="10" rx="2.5" />
+    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="12" cy="15" r="1.6" />
+  </svg>
+);
+
 const ChevronIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
@@ -101,6 +109,7 @@ const items: Item[] = [
   { label: "Travel List", href: "/dashboard/travel-list", icon: TravelListIcon },
   { label: "Users", href: "/dashboard/users", icon: UsersIcon, adminOnly: true },
   { label: "Roles", href: "/dashboard/roles", icon: RoleIcon, adminOnly: true },
+  { label: "Access", href: "/dashboard/access", icon: AccessIcon, adminOnly: true },
   { label: "Account", href: "/dashboard/accounts", icon: AccountIcon, roleNames: ["account"] },
   { label: "Currency", href: "/dashboard/currency", icon: CurrencyIcon, roleNames: ["currency"] },
 ];
@@ -125,11 +134,11 @@ export default function Sidebar() {
     });
   }
 
-  const userRoleName = (user?.roleName || "").trim().toLowerCase();
+  const userRoleNames = (user?.roleNames || []).map((n) => n.trim().toLowerCase());
   const visible = items.filter((i) => {
     if (isAdmin) return true;
     if (i.adminOnly) return false;
-    if (i.roleNames) return i.roleNames.includes(userRoleName);
+    if (i.roleNames) return i.roleNames.some((rn) => userRoleNames.includes(rn));
     return true;
   });
 
