@@ -213,6 +213,11 @@ function DocPreviewReadOnly({ doc, onDownload }: { doc: BookingDocument; onDownl
 export default function BookingsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // A Team Lead sees every booking (server-side, see routes/bookings.py's
+  // list_bookings) but can only edit/delete ones they personally created —
+  // enforced again here so the buttons aren't even shown for rows the
+  // backend would reject with a 404.
+  const isTeamLead = (user?.roleName || "").trim().toLowerCase() === "team lead";
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -935,6 +940,7 @@ export default function BookingsPage() {
               <tbody>
                 {paged.map((b) => {
                   const t = computeInvoiceTotals(b);
+                  const canModify = !isTeamLead || isAdmin || b.createdBy === user?.id;
                   return (
                   <tr key={b.id}>
                     <td style={{ color: "var(--ink-dim)" }}>{b.invoiceNumber || "—"}</td>
@@ -993,22 +999,26 @@ export default function BookingsPage() {
                             DownloadIcon
                           )}
                         </button>
-                        <button
-                          className={styles.iconBtn}
-                          onClick={() => openEdit(b)}
-                          aria-label={`Edit booking for ${b.clientName}`}
-                          title="Edit"
-                        >
-                          {EditIcon}
-                        </button>
-                        <button
-                          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                          onClick={() => onDelete(b.id, b.clientName)}
-                          aria-label={`Delete booking for ${b.clientName}`}
-                          title="Delete"
-                        >
-                          {DeleteIcon}
-                        </button>
+                        {canModify && (
+                          <>
+                            <button
+                              className={styles.iconBtn}
+                              onClick={() => openEdit(b)}
+                              aria-label={`Edit booking for ${b.clientName}`}
+                              title="Edit"
+                            >
+                              {EditIcon}
+                            </button>
+                            <button
+                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                              onClick={() => onDelete(b.id, b.clientName)}
+                              aria-label={`Delete booking for ${b.clientName}`}
+                              title="Delete"
+                            >
+                              {DeleteIcon}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

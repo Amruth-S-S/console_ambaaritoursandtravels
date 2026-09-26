@@ -201,6 +201,7 @@ export type Booking = BookingData & {
   userName: string;
   userEmail: string;
   packageTitle: string;
+  createdBy: string;
 };
 
 // FastAPI's error body is `{"detail": ...}`, but `detail` isn't always a

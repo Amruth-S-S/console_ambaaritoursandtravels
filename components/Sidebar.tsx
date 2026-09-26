@@ -53,6 +53,12 @@ const BookingsIcon = (
   </svg>
 );
 
+const TravelListIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 12h4l3-8 4 16 3-8h4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const RoleIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path
@@ -90,6 +96,9 @@ const items: Item[] = [
   { label: "Overview", href: "/dashboard", icon: HomeIcon },
   { label: "Packages", href: "/dashboard/packages", icon: PackagesIcon },
   { label: "Bookings", href: "/dashboard/bookings", icon: BookingsIcon },
+  // No adminOnly/roleNames — common to every logged-in account (admin,
+  // plain user, Team Lead, Account/Currency role), per the request.
+  { label: "Travel List", href: "/dashboard/travel-list", icon: TravelListIcon },
   { label: "Users", href: "/dashboard/users", icon: UsersIcon, adminOnly: true },
   { label: "Roles", href: "/dashboard/roles", icon: RoleIcon, adminOnly: true },
   { label: "Account", href: "/dashboard/accounts", icon: AccountIcon, roleNames: ["account"] },
