@@ -223,6 +223,20 @@ export type Booking = BookingData & {
   createdBy: string;
 };
 
+// The handful of fields the Travel List page renders — see
+// getTravelList()/routes/bookings.py's /travel-list, which is deliberately
+// unfiltered by ownership (unlike Booking above) since that page is common
+// to every logged-in account.
+export type TravelListEntry = {
+  id: string;
+  travelDate: string;
+  packageTitle: string;
+  location: string;
+  clientName: string;
+  adults: string;
+  children: string;
+};
+
 // FastAPI's error body is `{"detail": ...}`, but `detail` isn't always a
 // plain string — a 422 validation failure (e.g. a required field missing)
 // sends an ARRAY of {loc, msg, type} objects instead. Passing that straight
@@ -387,6 +401,10 @@ export const api = {
   // ledgers' client dropdowns use, since staff who only do ledger entry
   // work typically have no bookings of their own to filter down to.
   getClientDirectory: () => request<{ clientName: string; clientPhone: string }[]>("/bookings/clients"),
+  // Also unfiltered by ownership, same reasoning — the Travel List page is
+  // common to every logged-in account, not scoped to what this login
+  // created/is assigned to like listBookings() above.
+  getTravelList: () => request<TravelListEntry[]>("/bookings/travel-list"),
   // Full record including ID documents, which listBookings() excludes for
   // list-view performance — used before opening the edit form so previously
   // uploaded Aadhar/PAN/Passport/other files are visible again.

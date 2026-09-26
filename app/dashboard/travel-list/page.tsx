@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, Booking } from "@/lib/api";
+import { api, TravelListEntry } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
 import dash from "../dashboard.module.css";
@@ -24,7 +24,7 @@ type Group = {
   key: string;
   travelDate: string;
   packageName: string;
-  bookings: Booking[];
+  bookings: TravelListEntry[];
   totalAdults: number;
   totalChildren: number;
 };
@@ -33,7 +33,7 @@ type Group = {
 // per Travel Date + Travel Package combination (not just per package, since
 // the same package can run on several different dates), expanding to the
 // client/adults/children roster for that specific departure.
-function groupBookings(bookings: Booking[]): Group[] {
+function groupBookings(bookings: TravelListEntry[]): Group[] {
   const map = new Map<string, Group>();
   for (const b of bookings) {
     const packageName = (b.packageTitle || b.location || "Unspecified").trim();
@@ -56,20 +56,18 @@ function todayIso(): string {
 }
 
 export default function TravelListPage() {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<TravelListEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // No role gate on this page — every logged-in account (admin, plain
-    // user, Team Lead, Account/Currency role) sees it. listBookings()
-    // itself still scopes the underlying data per the usual visibility
-    // rules (admin/Team Lead see everything, everyone else sees their
-    // own/assigned bookings) — this page is just a different view over
-    // whatever bookings that account can already see.
+    // No role gate on this page, and getTravelList() itself is deliberately
+    // unfiltered by ownership (unlike listBookings()) — every logged-in
+    // account sees every trip's date/package/client/adults/children here,
+    // not just the bookings they personally created or are assigned to.
     api
-      .listBookings()
+      .getTravelList()
       .then(setBookings)
       .catch(() => {})
       .finally(() => setLoaded(true));
