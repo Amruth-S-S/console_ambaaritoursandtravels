@@ -151,6 +151,7 @@ export default function TravelListPage() {
                 <th>Adults</th>
                 <th>Children</th>
                 <th>Infants</th>
+                <th>Booked By</th>
               </tr>
             </thead>
             <tbody>
@@ -161,6 +162,7 @@ export default function TravelListPage() {
                   <td>{b.adults || "0"}</td>
                   <td>{b.children || "0"}</td>
                   <td>{b.infants || "0"}</td>
+                  <td>{b.userName || "—"}</td>
                 </tr>
               ))}
             </tbody>

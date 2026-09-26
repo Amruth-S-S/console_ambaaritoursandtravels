@@ -236,6 +236,9 @@ export type TravelListEntry = {
   adults: string;
   children: string;
   infants: string;
+  // Same value as the Bookings table's "Booked By" column — the staff
+  // member this booking is assigned to.
+  userName: string;
 };
 
 // FastAPI's error body is `{"detail": ...}`, but `detail` isn't always a
