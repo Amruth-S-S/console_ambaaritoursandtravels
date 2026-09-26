@@ -27,12 +27,13 @@ type Group = {
   bookings: TravelListEntry[];
   totalAdults: number;
   totalChildren: number;
+  totalInfants: number;
 };
 
 // Groups bookings the same way the design sketch lays them out — one row
 // per Travel Date + Travel Package combination (not just per package, since
 // the same package can run on several different dates), expanding to the
-// client/adults/children roster for that specific departure.
+// client/adults/children/infants roster for that specific departure.
 function groupBookings(bookings: TravelListEntry[]): Group[] {
   const map = new Map<string, Group>();
   for (const b of bookings) {
@@ -41,12 +42,21 @@ function groupBookings(bookings: TravelListEntry[]): Group[] {
     const key = `${travelDate}__${packageName}`;
     let g = map.get(key);
     if (!g) {
-      g = { key, travelDate, packageName, bookings: [], totalAdults: 0, totalChildren: 0 };
+      g = {
+        key,
+        travelDate,
+        packageName,
+        bookings: [],
+        totalAdults: 0,
+        totalChildren: 0,
+        totalInfants: 0,
+      };
       map.set(key, g);
     }
     g.bookings.push(b);
     g.totalAdults += Number(b.adults) || 0;
     g.totalChildren += Number(b.children) || 0;
+    g.totalInfants += Number(b.infants) || 0;
   }
   return Array.from(map.values());
 }
@@ -129,7 +139,7 @@ export default function TravelListPage() {
           <span className={styles.groupPackage}>{g.packageName}</span>
           <span className={styles.groupCount}>
             {g.bookings.length} client{g.bookings.length === 1 ? "" : "s"} · {g.totalAdults} adults
-            · {g.totalChildren} children
+            · {g.totalChildren} children · {g.totalInfants} infants
           </span>
         </button>
         {open && (
@@ -140,6 +150,7 @@ export default function TravelListPage() {
                 <th>Client</th>
                 <th>Adults</th>
                 <th>Children</th>
+                <th>Infants</th>
               </tr>
             </thead>
             <tbody>
@@ -149,6 +160,7 @@ export default function TravelListPage() {
                   <td>{b.clientName || "—"}</td>
                   <td>{b.adults || "0"}</td>
                   <td>{b.children || "0"}</td>
+                  <td>{b.infants || "0"}</td>
                 </tr>
               ))}
             </tbody>

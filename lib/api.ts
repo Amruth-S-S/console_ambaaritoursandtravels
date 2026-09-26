@@ -235,6 +235,7 @@ export type TravelListEntry = {
   clientName: string;
   adults: string;
   children: string;
+  infants: string;
 };
 
 // FastAPI's error body is `{"detail": ...}`, but `detail` isn't always a
