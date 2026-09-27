@@ -335,10 +335,9 @@ export default function AccountsPage() {
 
   if (user && !allowed) return null;
 
-  const canSubmit =
-    form.clientName.trim() &&
-    (form.debit.trim() || form.credit.trim() || form.balance.trim()) &&
-    !busy;
+  // Client Name is optional — a manual entry doesn't have to be tied to a
+  // known booking client, so the only real requirement is some amount.
+  const canSubmit = (form.debit.trim() || form.credit.trim() || form.balance.trim()) && !busy;
 
   return (
     <>
@@ -560,7 +559,7 @@ export default function AccountsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="a-client">Client Name</label>
+            <label htmlFor="a-client">Client Name (optional)</label>
             <select
               id="a-client"
               value={form.clientName}
