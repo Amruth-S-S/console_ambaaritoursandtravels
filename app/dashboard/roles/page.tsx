@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api, Role } from "@/lib/api";
 import Navbar from "@/components/Navbar";
+import RefreshButton from "@/components/RefreshButton";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
@@ -175,6 +176,7 @@ export default function RolesPage() {
                   placeholder="Search by role name…"
                 />
               </div>
+              <RefreshButton onRefresh={load} />
               <button className={styles.createBtn} onClick={openCreate}>
                 + Create role
               </button>

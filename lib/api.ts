@@ -84,12 +84,17 @@ export type CurrencyEntryInput = {
   travelDate: string;
   passportNumber: string;
   clientName: string;
+  name: string;
   phoneNumber: string;
   currency: string;
   amount: string;
   clientAmount: string;
   currencyConversion: string;
+  bankConversion: string;
+  companyCurrencyConversion: string;
+  paymentMode: string;
   handOverTo: string;
+  transferTo: string;
 };
 
 export type CurrencyEntry = CurrencyEntryInput & {

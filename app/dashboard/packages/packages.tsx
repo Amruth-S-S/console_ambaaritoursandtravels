@@ -7,6 +7,7 @@ import { SCANNER_QR_BASE64 } from "@/lib/scannerQr";
 import { buildPreviewHtml, downloadItineraryPdf, readFileAsDataURL, splitCommas } from "@/lib/itinerary";
 import { joinHtmlLines, splitHtmlLines } from "@/lib/richtext";
 import Navbar from "@/components/Navbar";
+import RefreshButton from "@/components/RefreshButton";
 import Modal from "@/components/Modal";
 import RichTextField from "@/components/RichTextField";
 import Toast, { ToastState } from "@/components/Toast";
@@ -810,6 +811,7 @@ export default function PackagesPage() {
                     placeholder="Search by title, company or duration…"
                   />
                 </div>
+                <RefreshButton onRefresh={loadPackages} />
                 <button className={`${styles.btn} ${styles.btnSuccess}`} onClick={openCreate}>
                   <i className="fas fa-plus" /> Create Package
                 </button>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, TravelListEntry } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
+import RefreshButton from "@/components/RefreshButton";
 import dash from "../dashboard.module.css";
 import styles from "./travel-list.module.css";
 
@@ -71,16 +72,20 @@ export default function TravelListPage() {
   const [search, setSearch] = useState("");
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    // No role gate on this page, and getTravelList() itself is deliberately
-    // unfiltered by ownership (unlike listBookings()) — every logged-in
-    // account sees every trip's date/package/client/adults/children here,
-    // not just the bookings they personally created or are assigned to.
-    api
+  // No role gate on this page, and getTravelList() itself is deliberately
+  // unfiltered by ownership (unlike listBookings()) — every logged-in
+  // account sees every trip's date/package/client/adults/children here,
+  // not just the bookings they personally created or are assigned to.
+  function load() {
+    return api
       .getTravelList()
       .then(setBookings)
       .catch(() => {})
       .finally(() => setLoaded(true));
+  }
+
+  useEffect(() => {
+    load();
   }, []);
 
   const groups = useMemo(() => groupBookings(bookings), [bookings]);
@@ -182,13 +187,16 @@ export default function TravelListPage() {
               <h3>Travel lists</h3>
               <span className={styles.count}>{groups.length} groups</span>
             </div>
-            <div className={styles.search}>
-              <span className={styles.searchIcon}>{SearchIcon}</span>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by date, package or client…"
-              />
+            <div className={styles.headRight}>
+              <div className={styles.search}>
+                <span className={styles.searchIcon}>{SearchIcon}</span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by date, package or client…"
+                />
+              </div>
+              <RefreshButton onRefresh={load} />
             </div>
           </div>
 

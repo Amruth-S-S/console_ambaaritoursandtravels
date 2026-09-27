@@ -8,6 +8,7 @@ import { computeInvoiceTotals, downloadInvoicePdf, getInvoicePdfBlob } from "@/l
 import { downloadItineraryPdf, escapeHtml, readFileAsDataURL } from "@/lib/itinerary";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
+import RefreshButton from "@/components/RefreshButton";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
@@ -272,13 +273,14 @@ export default function BookingsPage() {
   // the slower of the three. Users/packages only matter once the create/edit
   // modal is open, so there's no downside to them arriving a beat later.
   function load() {
-    api
+    api.listUsers().then(setUsers).catch(() => {});
+    api.listPackages().then(setPackages).catch(() => {});
+    // Returned so the Refresh button can keep spinning until the list lands.
+    return api
       .listBookings()
       .then(setBookings)
       .catch((e) => notify("err", e instanceof Error ? e.message : "Failed to load bookings"))
       .finally(() => setLoaded(true));
-    api.listUsers().then(setUsers).catch(() => {});
-    api.listPackages().then(setPackages).catch(() => {});
   }
 
   useEffect(() => {
@@ -880,6 +882,7 @@ export default function BookingsPage() {
                   placeholder="Search by client, phone, package, date or month…"
                 />
               </div>
+              <RefreshButton onRefresh={load} />
               <button className={styles.createBtn} onClick={openCreate}>
                 + Create Booking
               </button>

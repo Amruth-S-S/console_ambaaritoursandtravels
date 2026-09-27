@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api, AccountEntry } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
+import RefreshButton from "@/components/RefreshButton";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
@@ -44,7 +45,7 @@ const ChevronIcon = (
   </svg>
 );
 
-const PAYMENT_MODE_OPTIONS = ["Cash", "UPI", "Net Banking", "Cheque"];
+const PAYMENT_MODE_OPTIONS = ["Cash", "UPI", "Net Banking", "Cheque", "Account Transfer"];
 
 type FormState = {
   slNo: string;
@@ -359,6 +360,7 @@ export default function AccountsPage() {
                   placeholder="Search by agent, client, destination…"
                 />
               </div>
+              <RefreshButton onRefresh={load} />
               {(isAdmin || perms.create) && (
                 <button className={styles.createBtn} onClick={openCreate}>
                   + Add Entry
@@ -583,14 +585,15 @@ export default function AccountsPage() {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </div>
-          <div className={styles.field}>
-            <label htmlFor="a-destination">Destination</label>
-            <input
-              id="a-destination"
-              value={form.destination}
-              onChange={(e) => setForm({ ...form, destination: e.target.value })}
-            />
-          </div>
+        </div>
+        <div className={styles.field}>
+          <label htmlFor="a-destination">Destination</label>
+          <textarea
+            id="a-destination"
+            rows={3}
+            value={form.destination}
+            onChange={(e) => setForm({ ...form, destination: e.target.value })}
+          />
         </div>
         <div className={styles.row3}>
           <div className={styles.field}>
@@ -619,6 +622,8 @@ export default function AccountsPage() {
               onChange={(e) => setForm({ ...form, credit: e.target.value })}
             />
           </div>
+        </div>
+        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="a-balance">Balance (Rs.)</label>
             <input
@@ -628,20 +633,20 @@ export default function AccountsPage() {
               onChange={(e) => setForm({ ...form, balance: e.target.value })}
             />
           </div>
-        </div>
-        <div className={styles.field}>
-          <label htmlFor="a-paymentmode">Payment Mode</label>
-          <select
-            id="a-paymentmode"
-            value={form.paymentMode}
-            onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
-          >
-            {PAYMENT_MODE_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
+          <div className={styles.field}>
+            <label htmlFor="a-paymentmode">Payment Mode</label>
+            <select
+              id="a-paymentmode"
+              value={form.paymentMode}
+              onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
+            >
+              {PAYMENT_MODE_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className={styles.field}>
           <label htmlFor="a-description">Description</label>

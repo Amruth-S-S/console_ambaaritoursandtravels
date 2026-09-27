@@ -4,8 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api, BookingByPackage, Package, RoomEntry, RoomTraveler } from "@/lib/api";
-import { downloadCombinedRoomListPdf, downloadRoomListPdf, getRoomListPdfBlob } from "@/lib/roomListPdf";
+import {
+  downloadCombinedRoomListPdf,
+  downloadRoomListPdf,
+  getCombinedRoomListPdfBlob,
+  getRoomListPdfBlob,
+} from "@/lib/roomListPdf";
 import Navbar from "@/components/Navbar";
+import RefreshButton from "@/components/RefreshButton";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
@@ -139,7 +145,7 @@ export default function RoomsPage() {
   // Filters the list to one package's room lists — also what "Download
   // All" bundles into the combined master sheet below.
   const [packageFilter, setPackageFilter] = useState("");
-  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [allBusy, setAllBusy] = useState<"view" | "download" | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -272,18 +278,27 @@ export default function RoomsPage() {
     );
   }, [byPackage, search]);
 
-  async function onDownloadAll() {
+  // "View All" opens the combined sheet in a new tab, "Download All" saves
+  // it — same PDF either way.
+  async function onAllPdf(action: "view" | "download") {
     if (!packageFilter) return;
     const packageTitle =
       packageFilterOptions.find((p) => p.id === packageFilter)?.title || "room-list";
-    setDownloadingAll(true);
+    const filename = `room-list-${packageTitle.replace(/[^a-z0-9]+/gi, "-")}.pdf`;
+    setAllBusy(action);
     try {
-      const filename = `room-list-${packageTitle.replace(/[^a-z0-9]+/gi, "-")}.pdf`;
-      await downloadCombinedRoomListPdf(byPackage, packageTitle, filename);
+      if (action === "download") {
+        await downloadCombinedRoomListPdf(byPackage, packageTitle, filename);
+      } else {
+        const blob = await getCombinedRoomListPdfBlob(byPackage, packageTitle, filename);
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
     } catch (e) {
-      notify("err", e instanceof Error ? e.message : "Failed to download combined room list");
+      notify("err", e instanceof Error ? e.message : "Failed to build combined room list");
     } finally {
-      setDownloadingAll(false);
+      setAllBusy(null);
     }
   }
 
@@ -510,8 +525,21 @@ export default function RoomsPage() {
             <div className={styles.tableHeadRight}>
               <button
                 className={styles.secondaryBtn}
-                onClick={onDownloadAll}
-                disabled={!packageFilter || downloadingAll}
+                onClick={() => onAllPdf("view")}
+                disabled={!packageFilter || allBusy !== null}
+                title={
+                  packageFilter
+                    ? "Open a combined PDF of every room list for this package"
+                    : "Select a package above first"
+                }
+              >
+                {ViewIcon}
+                {allBusy === "view" ? "Opening…" : "View All"}
+              </button>
+              <button
+                className={styles.secondaryBtn}
+                onClick={() => onAllPdf("download")}
+                disabled={!packageFilter || allBusy !== null}
                 title={
                   packageFilter
                     ? "Download a combined PDF of every room list for this package"
@@ -519,7 +547,7 @@ export default function RoomsPage() {
                 }
               >
                 {DownloadIcon}
-                {downloadingAll ? "Downloading…" : "Download All"}
+                {allBusy === "download" ? "Downloading…" : "Download All"}
               </button>
               <div className={styles.search}>
                 <span className={styles.searchIcon}>{SearchIcon}</span>
@@ -529,6 +557,7 @@ export default function RoomsPage() {
                   placeholder="Search by Sl No, client or package…"
                 />
               </div>
+              <RefreshButton onRefresh={load} />
               {(isAdmin || perms.create) && (
                 <button className={styles.createBtn} onClick={openCreate}>
                   + Add Room

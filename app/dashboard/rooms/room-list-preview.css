@@ -1,5 +1,5 @@
 .room-doc {
-  width: 900px;
+  width: 1000px;
   background: #ffffff;
   color: #1e293b;
   font-family: "Segoe UI", Arial, sans-serif;
@@ -61,8 +61,30 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 10px 32px;
+  padding: 10px 24px;
   border-top: 1px solid rgba(242, 193, 78, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.room-stats {
+  display: flex;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.room-stats span {
+  background: rgba(242, 193, 78, 0.14);
+  border: 1px solid rgba(242, 193, 78, 0.35);
+  color: #f6d88a;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .room-table {
@@ -75,21 +97,22 @@
   text-align: left;
   background: #f2c14e;
   color: #10162a;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 10px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 8px;
+  border-bottom: 2px solid #d9a92f;
   white-space: nowrap;
 }
 
 .room-table td {
-  padding: 9px 14px;
-  border-bottom: 1px solid #f1f5f9;
-  border-right: 1px solid #f1f5f9;
+  padding: 7px 8px;
+  border-bottom: 1px solid #edf0f5;
+  border-right: 1px solid #edf0f5;
   vertical-align: middle;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .room-table td:last-child {
@@ -107,16 +130,53 @@
   text-align: center;
 }
 
-/* Alternating background per CLIENT group (not per row) — see
-   buildCombinedRoomListHtml, which is the only place these classes are
-   used. Makes it obvious at a glance where one client's traveler block
-   ends and the next begins, without having to trace the rowspan cells. */
+.room-table .client {
+  max-width: 130px;
+}
+
+.room-table .name {
+  font-weight: 600;
+  color: #10162a;
+}
+
+.room-table .mono {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* DOB always on one line as dd/mm/yyyy. */
+.room-table .dob {
+  white-space: nowrap;
+}
+
+/* Airports are secondary info — smaller and muted so the extra two
+   columns don't crowd the names and passport numbers. */
+.room-table .ap {
+  font-size: 9.5px;
+  color: #475569;
+  max-width: 95px;
+}
+
+/* Alternating background per CLIENT group (not per row) in the combined
+   sheet — see buildCombinedRoomListHtml. Makes it obvious at a glance
+   where one client's traveler block ends and the next begins, without
+   having to trace the rowspan cells. grp-c is the single-entry sheet's
+   subtle zebra stripe. */
 .room-table tr.grp-a td {
   background: #ffffff;
 }
 
 .room-table tr.grp-b td {
   background: #fdf1d6;
+}
+
+.room-table tr.grp-c td {
+  background: #f8fafc;
+}
+
+.room-table tr.grp-start td {
+  border-top: 2px solid #e6d3a0;
 }
 
 .room-table .muted {

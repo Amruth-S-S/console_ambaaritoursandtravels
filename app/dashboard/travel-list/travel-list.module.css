@@ -21,6 +21,12 @@
   gap: 12px;
 }
 
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .headLeft h3 {
   font-family: var(--font-display);
   font-size: 16px;

@@ -7,6 +7,7 @@ import { api, CurrencyEntry } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
+import RefreshButton from "@/components/RefreshButton";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
 // Reusing the Account ledger's styling — same shape of page (search,
@@ -63,17 +64,25 @@ const CURRENCY_OPTIONS = [
   "LKR",
 ];
 
+// Same list as the Account ledger's Payment Mode dropdown.
+const PAYMENT_MODE_OPTIONS = ["Cash", "UPI", "Net Banking", "Cheque", "Account Transfer"];
+
 type FormState = {
   slNo: string;
   travelDate: string;
   passportNumber: string;
   clientName: string;
+  name: string;
   phoneNumber: string;
   currency: string;
   amount: string;
   clientAmount: string;
   currencyConversion: string;
+  bankConversion: string;
+  companyCurrencyConversion: string;
+  paymentMode: string;
   handOverTo: string;
+  transferTo: string;
 };
 
 const emptyForm: FormState = {
@@ -81,12 +90,17 @@ const emptyForm: FormState = {
   travelDate: "",
   passportNumber: "",
   clientName: "",
+  name: "",
   phoneNumber: "",
   currency: "USD",
   amount: "",
   clientAmount: "",
   currencyConversion: "",
+  bankConversion: "",
+  companyCurrencyConversion: "",
+  paymentMode: "Cash",
   handOverTo: "",
+  transferTo: "",
 };
 
 export default function CurrencyLedgerPage() {
@@ -180,9 +194,12 @@ export default function CurrencyLedgerPage() {
         e.slNo.toLowerCase().includes(q) ||
         e.passportNumber.toLowerCase().includes(q) ||
         e.clientName.toLowerCase().includes(q) ||
+        e.name.toLowerCase().includes(q) ||
         e.phoneNumber.toLowerCase().includes(q) ||
         e.currency.toLowerCase().includes(q) ||
-        e.handOverTo.toLowerCase().includes(q)
+        e.handOverTo.toLowerCase().includes(q) ||
+        e.transferTo.toLowerCase().includes(q) ||
+        e.paymentMode.toLowerCase().includes(q)
     );
   }, [entries, search]);
 
@@ -208,12 +225,17 @@ export default function CurrencyLedgerPage() {
       travelDate: entry.travelDate,
       passportNumber: entry.passportNumber,
       clientName: entry.clientName,
+      name: entry.name,
       phoneNumber: entry.phoneNumber,
       currency: entry.currency,
       amount: entry.amount,
       clientAmount: entry.clientAmount,
       currencyConversion: entry.currencyConversion,
+      bankConversion: entry.bankConversion,
+      companyCurrencyConversion: entry.companyCurrencyConversion,
+      paymentMode: entry.paymentMode,
       handOverTo: entry.handOverTo,
+      transferTo: entry.transferTo,
     });
     setFormErr("");
     setModalOpen(true);
@@ -248,7 +270,7 @@ export default function CurrencyLedgerPage() {
     window.clearTimeout(toastTimer.current);
     setToast({
       type: "confirm",
-      text: `Delete this entry for ${entry.clientName || "this client"}? This cannot be undone.`,
+      text: `Delete this entry for ${entry.clientName || entry.name || "this client"}? This cannot be undone.`,
       onCancel: () => setToast(null),
       onConfirm: async () => {
         setToast(null);
@@ -279,7 +301,7 @@ export default function CurrencyLedgerPage() {
 
   if (user && !allowed) return null;
 
-  const canSubmit = form.clientName.trim() && form.amount.trim() && !busy;
+  const canSubmit = form.amount.trim() && !busy;
 
   return (
     <>
@@ -301,6 +323,7 @@ export default function CurrencyLedgerPage() {
                   placeholder="Search by client, passport, currency…"
                 />
               </div>
+              <RefreshButton onRefresh={load} />
               {(isAdmin || perms.create) && (
                 <button className={styles.createBtn} onClick={openCreate}>
                   + Add Entry
@@ -324,12 +347,17 @@ export default function CurrencyLedgerPage() {
                     <th>Travel Date</th>
                     <th>Passport Number</th>
                     <th>Client Name</th>
+                    <th>Name</th>
                     <th>Phone Number</th>
                     <th>Currency</th>
                     <th>Client Amount</th>
                     <th>Currency Conversion</th>
+                    <th>Bank Conversion</th>
+                    <th>Company Currency Conversion</th>
                     <th>Amount (INR)</th>
+                    <th>Payment Mode</th>
                     <th>Hand Over To</th>
+                    <th>Transfer To</th>
                     <th>Approval</th>
                     <th></th>
                   </tr>
@@ -341,12 +369,17 @@ export default function CurrencyLedgerPage() {
                       <td>{formatDateDMY(e.travelDate) || "—"}</td>
                       <td>{e.passportNumber || "—"}</td>
                       <td>{e.clientName || "—"}</td>
+                      <td>{e.name || "—"}</td>
                       <td>{e.phoneNumber || "—"}</td>
                       <td>{e.currency || "—"}</td>
                       <td>{e.clientAmount || "—"}</td>
                       <td>{e.currencyConversion || "—"}</td>
-                      <td>₹ {(Number(e.amount) || 0).toLocaleString("en-IN")}</td>
+                      <td>{e.bankConversion || "—"}</td>
+                      <td>{e.companyCurrencyConversion || "—"}</td>
+                      <td>₹ {(Number(e.amount.replace(/[^0-9.]/g, "")) || 0).toLocaleString("en-IN")}</td>
+                      <td>{e.paymentMode || "—"}</td>
                       <td>{e.handOverTo || "—"}</td>
+                      <td>{e.transferTo || "—"}</td>
                       <td>
                         {isAdmin ? (
                           <button
@@ -441,7 +474,7 @@ export default function CurrencyLedgerPage() {
         </div>
         <div className={styles.row3}>
           <div className={styles.field}>
-            <label htmlFor="c-client">Client Name</label>
+            <label htmlFor="c-client">Client Name (optional)</label>
             <select
               id="c-client"
               value={form.clientName}
@@ -458,6 +491,14 @@ export default function CurrencyLedgerPage() {
             </select>
           </div>
           <div className={styles.field}>
+            <label htmlFor="c-name">Name</label>
+            <input
+              id="c-name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
             <label htmlFor="c-phone">Phone Number</label>
             <input
               id="c-phone"
@@ -467,6 +508,8 @@ export default function CurrencyLedgerPage() {
               onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
             />
           </div>
+        </div>
+        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="c-handover">Hand Over To</label>
             <input
@@ -474,6 +517,28 @@ export default function CurrencyLedgerPage() {
               value={form.handOverTo}
               onChange={(e) => setForm({ ...form, handOverTo: e.target.value })}
             />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="c-transferto">Transfer To</label>
+            <input
+              id="c-transferto"
+              value={form.transferTo}
+              onChange={(e) => setForm({ ...form, transferTo: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="c-paymentmode">Payment Mode</label>
+            <select
+              id="c-paymentmode"
+              value={form.paymentMode}
+              onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
+            >
+              {PAYMENT_MODE_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className={styles.row3}>
@@ -484,9 +549,9 @@ export default function CurrencyLedgerPage() {
               value={form.currency}
               onChange={(e) => setForm({ ...form, currency: e.target.value })}
             >
-              {CURRENCY_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {CURRENCY_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
                 </option>
               ))}
             </select>
@@ -500,8 +565,6 @@ export default function CurrencyLedgerPage() {
               onChange={(e) => setForm({ ...form, clientAmount: e.target.value })}
             />
           </div>
-        </div>
-        <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="c-conversion">Currency Conversion</label>
             <input
@@ -509,6 +572,26 @@ export default function CurrencyLedgerPage() {
               value={form.currencyConversion}
               placeholder="e.g. 83.50"
               onChange={(e) => setForm({ ...form, currencyConversion: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="c-bankconversion">Bank Conversion</label>
+            <input
+              id="c-bankconversion"
+              value={form.bankConversion}
+              placeholder="e.g. 83.20"
+              onChange={(e) => setForm({ ...form, bankConversion: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="c-companyconversion">Company Currency Conversion</label>
+            <input
+              id="c-companyconversion"
+              value={form.companyCurrencyConversion}
+              placeholder="e.g. 83.00"
+              onChange={(e) => setForm({ ...form, companyCurrencyConversion: e.target.value })}
             />
           </div>
           <div className={styles.field}>
