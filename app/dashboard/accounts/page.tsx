@@ -11,6 +11,8 @@ import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
 import styles from "./accounts.module.css";
+import AttachmentsModal from "./AttachmentsModal";
+import ViewEntryModal from "./ViewEntryModal";
 
 const SearchIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -33,6 +35,23 @@ const DeleteIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path
       d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const ViewIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" strokeLinejoin="round" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const AttachIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path
+      d="m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
@@ -157,6 +176,13 @@ export default function AccountsPage() {
   const [formErr, setFormErr] = useState("");
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  // Entry whose Files modal is open — kept by id so it tracks upload/delete
+  // updates written back into `entries`.
+  const [filesEntryId, setFilesEntryId] = useState<string | null>(null);
+  // Details modal. "Upload / manage files" in it swaps to the Files modal,
+  // and closing that returns here (filesFromView).
+  const [viewEntryId, setViewEntryId] = useState<string | null>(null);
+  const [filesFromView, setFilesFromView] = useState(false);
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -486,6 +512,34 @@ export default function AccountsPage() {
                         </td>
                         <td>
                           <div className={styles.actions}>
+                            <button
+                              className={styles.iconBtn}
+                              onClick={() => setViewEntryId(e.id)}
+                              aria-label="View entry details"
+                              title="View details and files"
+                            >
+                              {ViewIcon}
+                            </button>
+                            <button
+                              className={`${styles.iconBtn} ${styles.attachBtn} ${
+                                e.attachments?.length ? styles.attachBtnHas : ""
+                              }`}
+                              onClick={() => {
+                                setFilesFromView(false);
+                                setFilesEntryId(e.id);
+                              }}
+                              aria-label="Upload or view files"
+                              title={
+                                e.attachments?.length
+                                  ? `${e.attachments.length} file${e.attachments.length === 1 ? "" : "s"} — click to view or upload`
+                                  : "Upload files"
+                              }
+                            >
+                              {AttachIcon}
+                              {e.attachments?.length > 0 && (
+                                <span className={styles.attachCount}>{e.attachments.length}</span>
+                              )}
+                            </button>
                             {(isAdmin || perms.edit) && (
                               <button
                                 className={styles.iconBtn}
@@ -670,6 +724,29 @@ export default function AccountsPage() {
           </button>
         </div>
       </Modal>
+
+      <ViewEntryModal
+        entry={entries.find((x) => x.id === viewEntryId) ?? null}
+        onClose={() => setViewEntryId(null)}
+        onManageFiles={(entry) => {
+          setViewEntryId(null);
+          setFilesFromView(true);
+          setFilesEntryId(entry.id);
+        }}
+      />
+
+      <AttachmentsModal
+        entry={entries.find((x) => x.id === filesEntryId) ?? null}
+        onClose={() => {
+          if (filesFromView) setViewEntryId(filesEntryId);
+          setFilesFromView(false);
+          setFilesEntryId(null);
+        }}
+        onUpdated={(updated) =>
+          setEntries((list) => list.map((x) => (x.id === updated.id ? updated : x)))
+        }
+        canDelete={isAdmin || perms.delete}
+      />
     </>
   );
 }

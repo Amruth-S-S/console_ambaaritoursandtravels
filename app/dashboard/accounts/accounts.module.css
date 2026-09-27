@@ -377,3 +377,304 @@
   color: var(--danger);
   border: 1px solid rgba(255, 107, 107, 0.3);
 }
+
+/* Row "files" button — count badge sits on its top-right corner. */
+.attachBtn {
+  position: relative;
+}
+
+.attachBtnHas {
+  color: var(--accent);
+  border-color: rgba(240, 168, 72, 0.45);
+}
+
+.attachCount {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+/* Attachments modal */
+.dropZone {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 16px;
+  margin-top: 4px;
+  background: var(--surface-2);
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.dropZone:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dropZone:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.dropZone svg {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+}
+
+.dropZone strong {
+  font-size: 14px;
+}
+
+.dropZone span {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.fileEmpty {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.fileList {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.fileKind {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.fileInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fileName {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileMeta {
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+/* View (entry details) modal */
+.viewAmounts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.viewAmounts > div {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.viewAmounts span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+}
+
+.viewAmounts strong {
+  font-size: 16px;
+}
+
+.viewDebit {
+  color: var(--danger);
+}
+
+.viewCredit {
+  color: var(--chart-3);
+}
+
+.viewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+  margin: 18px 0 0;
+}
+
+.viewGrid dt,
+.viewFileMeta dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+}
+
+.viewGrid dd {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.viewWide {
+  grid-column: 1 / -1;
+}
+
+.viewWide dd {
+  font-weight: 400;
+  white-space: pre-wrap;
+}
+
+.viewFilesHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.viewFilesHead h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.viewFiles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.viewFile {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.viewPreview {
+  background: var(--surface-2);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+}
+
+.viewPreviewImg {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+}
+
+.viewPreviewPdf {
+  width: 100%;
+  height: 340px;
+  border: none;
+  background: #fff;
+}
+
+.viewPreviewMsg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  text-align: center;
+}
+
+.viewFileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.viewFileMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.viewFileMeta dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.viewFileActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+@media (max-width: 640px) {
+  .viewAmounts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .viewGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .viewFile {
+    grid-template-columns: 1fr;
+  }
+}

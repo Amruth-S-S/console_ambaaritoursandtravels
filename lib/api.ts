@@ -67,11 +67,28 @@ export type AccountEntryInput = {
   description: string;
 };
 
+// A receipt / proof file on a ledger entry. The list endpoint only sends
+// this metadata — fetch the file itself with getAccountAttachment.
+export type AccountAttachmentMeta = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  uploadedByName: string;
+};
+
+export type AccountAttachment = AccountAttachmentMeta & {
+  data: string; // base64 data URL
+};
+
 export type AccountEntry = AccountEntryInput & {
   id: string;
   createdAt: string;
   createdBy: string;
   approved: boolean;
+  attachments: AccountAttachmentMeta[];
 };
 
 // Currency exchange ledger — visible on the Currency menu (admin + users
@@ -518,6 +535,15 @@ export const api = {
   updateAccount: (id: string, body: AccountEntryInput) =>
     request<AccountEntry>(`/accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteAccount: (id: string) => request<void>(`/accounts/${id}`, { method: "DELETE" }),
+  uploadAccountAttachment: (id: string, file: { name: string; type: string; data: string }) =>
+    request<AccountEntry>(`/accounts/${id}/attachments`, {
+      method: "POST",
+      body: JSON.stringify(file),
+    }),
+  getAccountAttachment: (id: string, attachmentId: string) =>
+    request<AccountAttachment>(`/accounts/${id}/attachments/${attachmentId}`),
+  deleteAccountAttachment: (id: string, attachmentId: string) =>
+    request<AccountEntry>(`/accounts/${id}/attachments/${attachmentId}`, { method: "DELETE" }),
 
   listCurrencyEntries: () => request<CurrencyEntry[]>("/currency-entries"),
   getNextCurrencySlNo: () => request<{ slNo: string }>("/currency-entries/next-sl-no"),
