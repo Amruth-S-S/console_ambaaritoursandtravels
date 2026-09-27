@@ -38,7 +38,12 @@ const DeleteIcon = (
   </svg>
 );
 
-const DEBIT_CREDIT_OPTIONS = ["Debit", "Credit"];
+const ChevronIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const PAYMENT_MODE_OPTIONS = ["Cash", "UPI", "Net Banking", "Cheque"];
 
 type FormState = {
@@ -47,9 +52,11 @@ type FormState = {
   invoiceNo: string;
   agent: string;
   clientName: string;
+  name: string;
   destination: string;
   handOverTo: string;
-  debitCredit: string;
+  debit: string;
+  credit: string;
   balance: string;
   paymentMode: string;
   description: string;
@@ -65,13 +72,64 @@ const emptyForm: FormState = {
   invoiceNo: "",
   agent: "",
   clientName: "",
+  name: "",
   destination: "",
   handOverTo: "",
-  debitCredit: "Credit",
+  debit: "",
+  credit: "",
   balance: "",
   paymentMode: "Cash",
   description: "",
 };
+
+type EntryGroup = {
+  key: string;
+  invoiceNo: string;
+  clientName: string;
+  name: string;
+  slNo: string;
+  date: string;
+  agent: string;
+  destination: string;
+  handOverTo: string;
+  entries: AccountEntry[];
+};
+
+// Groups ledger rows the same way Travel List groups bookings — one client
+// making 3-4 advance payments shows up as one collapsible row (the shared
+// Sl No/Date/Invoice/Agent/Client/Destination/Hand Over To merged via
+// rowSpan) instead of 3-4 near-identical-looking rows. Grouped by Invoice
+// No + Client Name, since that's the pair that's actually shared across a
+// booking's synced payments; an entry with no invoice number (a one-off
+// manual row) just gets its own singleton group.
+function groupEntries(entries: AccountEntry[]): EntryGroup[] {
+  const map = new Map<string, EntryGroup>();
+  const order: string[] = [];
+  for (const e of entries) {
+    const key = e.invoiceNo.trim()
+      ? `${e.invoiceNo.trim().toLowerCase()}__${e.clientName.trim().toLowerCase()}`
+      : `single__${e.id}`;
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        invoiceNo: e.invoiceNo,
+        clientName: e.clientName,
+        name: e.name,
+        slNo: e.slNo,
+        date: e.date,
+        agent: e.agent,
+        destination: e.destination,
+        handOverTo: e.handOverTo,
+        entries: [],
+      };
+      map.set(key, g);
+      order.push(key);
+    }
+    g.entries.push(e);
+  }
+  return order.map((k) => map.get(k)!);
+}
 
 export default function AccountsPage() {
   const { user } = useAuth();
@@ -97,6 +155,7 @@ export default function AccountsPage() {
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -167,6 +226,17 @@ export default function AccountsPage() {
     );
   }, [entries, search]);
 
+  const groups = useMemo(() => groupEntries(filtered), [filtered]);
+
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   async function openCreate() {
     setMode("create");
     setEditingId(null);
@@ -192,9 +262,11 @@ export default function AccountsPage() {
       invoiceNo: entry.invoiceNo,
       agent: entry.agent,
       clientName: entry.clientName,
+      name: entry.name,
       destination: entry.destination,
       handOverTo: entry.handOverTo,
-      debitCredit: entry.debitCredit,
+      debit: entry.debit,
+      credit: entry.credit,
       balance: entry.balance,
       paymentMode: entry.paymentMode,
       description: entry.description,
@@ -263,7 +335,10 @@ export default function AccountsPage() {
 
   if (user && !allowed) return null;
 
-  const canSubmit = form.clientName.trim() && form.balance.trim() && !busy;
+  const canSubmit =
+    form.clientName.trim() &&
+    (form.debit.trim() || form.credit.trim() || form.balance.trim()) &&
+    !busy;
 
   return (
     <>
@@ -295,7 +370,7 @@ export default function AccountsPage() {
 
           {!loaded ? (
             <div className={styles.empty}>Loading…</div>
-          ) : filtered.length === 0 ? (
+          ) : groups.length === 0 ? (
             <div className={styles.empty}>
               {search ? "No entries match your search." : "No entries yet."}
             </div>
@@ -304,14 +379,17 @@ export default function AccountsPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
+                    <th></th>
                     <th>Sl No</th>
                     <th>Date</th>
                     <th>Invoice No</th>
                     <th>Agent</th>
                     <th>Client Name</th>
+                    <th>Name</th>
                     <th>Destination</th>
                     <th>Hand Over To</th>
-                    <th>Debit/Credit</th>
+                    <th>Debit</th>
+                    <th>Credit</th>
                     <th>Balance</th>
                     <th>Payment Mode</th>
                     <th>Description</th>
@@ -320,75 +398,118 @@ export default function AccountsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((e) => (
-                    <tr key={e.id}>
-                      <td>{e.slNo || "—"}</td>
-                      <td>{formatDateDMY(e.date) || "—"}</td>
-                      <td>{e.invoiceNo || "—"}</td>
-                      <td>{e.agent || "—"}</td>
-                      <td>{e.clientName || "—"}</td>
-                      <td>{e.destination || "—"}</td>
-                      <td>{e.handOverTo || "—"}</td>
-                      <td className={e.debitCredit === "Debit" ? styles.debit : styles.credit}>
-                        {e.debitCredit || "—"}
-                      </td>
-                      <td>₹ {(Number(e.balance) || 0).toLocaleString("en-IN")}</td>
-                      <td>{e.paymentMode || "—"}</td>
-                      <td className={styles.descCell} title={e.description || undefined}>
-                        {e.description || "—"}
-                      </td>
-                      <td>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className={`${styles.approveToggle} ${
-                              e.approved ? styles.approveToggleOn : ""
-                            }`}
-                            onClick={() => toggleApproval(e)}
-                            disabled={approvalBusyId === e.id}
-                            aria-label={e.approved ? "Mark as not approved" : "Mark as approved"}
-                            title={
-                              e.approved ? "Approved — click to revoke" : "Not approved — click to approve"
-                            }
-                          >
-                            <span className={styles.approveToggleDot} />
-                          </button>
-                        ) : (
-                          <span
-                            className={`${styles.approveBadge} ${
-                              e.approved ? styles.approveBadgeOn : styles.approveBadgeOff
-                            }`}
-                          >
-                            {e.approved ? "Approved" : "Pending"}
-                          </span>
+                  {groups.map((g) => {
+                    const isMulti = g.entries.length > 1;
+                    const open = openGroups.has(g.key);
+                    // Collapsed multi-payment groups only render their
+                    // first payment's row — same "click to see the rest"
+                    // idea as Travel List's date groups.
+                    const rows = isMulti && !open ? [g.entries[0]] : g.entries;
+                    return rows.map((e, i) => (
+                      <tr key={e.id} className={isMulti ? styles.groupedRow : undefined}>
+                        {i === 0 && (
+                          <td className={styles.chevronCell} rowSpan={rows.length}>
+                            {isMulti && (
+                              <button
+                                type="button"
+                                className={`${styles.chevronBtn} ${open ? styles.chevronOpen : ""}`}
+                                onClick={() => toggleGroup(g.key)}
+                                aria-expanded={open}
+                                aria-label={open ? "Collapse payments" : "Expand payments"}
+                                title={`${g.entries.length} payments for this invoice`}
+                              >
+                                {ChevronIcon}
+                              </button>
+                            )}
+                          </td>
                         )}
-                      </td>
-                      <td>
-                        <div className={styles.actions}>
-                          {(isAdmin || perms.edit) && (
+                        {i === 0 && (
+                          <>
+                            <td rowSpan={rows.length}>{g.slNo || "—"}</td>
+                            <td rowSpan={rows.length}>{formatDateDMY(g.date) || "—"}</td>
+                            <td rowSpan={rows.length}>{g.invoiceNo || "—"}</td>
+                            <td rowSpan={rows.length}>{g.agent || "—"}</td>
+                            <td rowSpan={rows.length}>
+                              {g.clientName || "—"}
+                              {isMulti && (
+                                <span className={styles.paymentBadge}>{g.entries.length}×</span>
+                              )}
+                            </td>
+                            <td rowSpan={rows.length}>{g.name || "—"}</td>
+                            <td rowSpan={rows.length}>{g.destination || "—"}</td>
+                            <td rowSpan={rows.length}>{g.handOverTo || "—"}</td>
+                          </>
+                        )}
+                        <td className={styles.debit}>
+                          {e.debit
+                            ? `₹ ${Number(e.debit).toLocaleString("en-IN")} DR`
+                            : "—"}
+                        </td>
+                        <td className={styles.credit}>
+                          {e.credit
+                            ? `₹ ${Number(e.credit).toLocaleString("en-IN")} CR`
+                            : "—"}
+                        </td>
+                        <td>{e.balance ? `₹ ${Number(e.balance).toLocaleString("en-IN")}` : "—"}</td>
+                        <td>{e.paymentMode || "—"}</td>
+                        <td className={styles.descCell} title={e.description || undefined}>
+                          {e.description || "—"}
+                        </td>
+                        <td>
+                          {isAdmin ? (
                             <button
-                              className={styles.iconBtn}
-                              onClick={() => openEdit(e)}
-                              aria-label="Edit entry"
-                              title="Edit"
+                              type="button"
+                              className={`${styles.approveToggle} ${
+                                e.approved ? styles.approveToggleOn : ""
+                              }`}
+                              onClick={() => toggleApproval(e)}
+                              disabled={approvalBusyId === e.id}
+                              aria-label={e.approved ? "Mark as not approved" : "Mark as approved"}
+                              title={
+                                e.approved
+                                  ? "Approved — click to revoke"
+                                  : "Not approved — click to approve"
+                              }
                             >
-                              {EditIcon}
+                              <span className={styles.approveToggleDot} />
                             </button>
-                          )}
-                          {(isAdmin || perms.delete) && (
-                            <button
-                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                              onClick={() => onDelete(e)}
-                              aria-label="Delete entry"
-                              title="Delete"
+                          ) : (
+                            <span
+                              className={`${styles.approveBadge} ${
+                                e.approved ? styles.approveBadgeOn : styles.approveBadgeOff
+                              }`}
                             >
-                              {DeleteIcon}
-                            </button>
+                              {e.approved ? "Approved" : "Pending"}
+                            </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>
+                          <div className={styles.actions}>
+                            {(isAdmin || perms.edit) && (
+                              <button
+                                className={styles.iconBtn}
+                                onClick={() => openEdit(e)}
+                                aria-label="Edit entry"
+                                title="Edit"
+                              >
+                                {EditIcon}
+                              </button>
+                            )}
+                            {(isAdmin || perms.delete) && (
+                              <button
+                                className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                                onClick={() => onDelete(e)}
+                                aria-label="Delete entry"
+                                title="Delete"
+                              >
+                                {DeleteIcon}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ));
+                  })}
                 </tbody>
               </table>
             </div>
@@ -456,6 +577,14 @@ export default function AccountsPage() {
             </select>
           </div>
           <div className={styles.field}>
+            <label htmlFor="a-name">Name</label>
+            <input
+              id="a-name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
             <label htmlFor="a-destination">Destination</label>
             <input
               id="a-destination"
@@ -474,18 +603,22 @@ export default function AccountsPage() {
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="a-debitcredit">Debit/Credit</label>
-            <select
-              id="a-debitcredit"
-              value={form.debitCredit}
-              onChange={(e) => setForm({ ...form, debitCredit: e.target.value })}
-            >
-              {DEBIT_CREDIT_OPTIONS.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+            <label htmlFor="a-debit">Debit (Rs.)</label>
+            <input
+              id="a-debit"
+              value={form.debit}
+              placeholder="e.g. 5000"
+              onChange={(e) => setForm({ ...form, debit: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="a-credit">Credit (Rs.)</label>
+            <input
+              id="a-credit"
+              value={form.credit}
+              placeholder="e.g. 5000"
+              onChange={(e) => setForm({ ...form, credit: e.target.value })}
+            />
           </div>
           <div className={styles.field}>
             <label htmlFor="a-balance">Balance (Rs.)</label>

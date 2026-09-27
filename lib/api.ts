@@ -51,9 +51,17 @@ export type AccountEntryInput = {
   invoiceNo: string;
   agent: string;
   clientName: string;
+  // Free-text name field alongside the Client Name dropdown — manual only.
+  name: string;
   destination: string;
   handOverTo: string;
-  debitCredit: string;
+  // Separate amount fields — a booking-synced row's advance payment lands
+  // in credit (received = credit); debit stays blank on synced rows,
+  // reserved for manual expense/adjustment entries.
+  debit: string;
+  credit: string;
+  // The booking's outstanding Balance Due — same figure across every
+  // synced row for that booking, free text on a manual entry.
   balance: string;
   paymentMode: string;
   description: string;
@@ -107,6 +115,50 @@ export type AccessInfo = {
   userId: string;
   userName: string;
   grants: AccessGrant[];
+};
+
+// Room list ("rooming list") — one passport-matching detail block per
+// traveler under a booking, not just a headcount. See routes/rooms.py.
+export type RoomTraveler = {
+  category: "adult" | "child" | "infant";
+  givenName: string;
+  surname: string;
+  gender: string;
+  passportNo: string;
+  dob: string;
+  arrivalAirport: string;
+  departureAirport: string;
+};
+
+export type RoomEntryInput = {
+  slNo: string;
+  packageType: "domestic" | "international";
+  packageId: string;
+  packageTitle: string;
+  clientName: string;
+  // Auto-filled from the selected client's booking, editable afterward.
+  invoiceNumber: string;
+  roomType: string;
+  numberOfRooms: string;
+  sharingPerRoom: string;
+  travelers: RoomTraveler[];
+};
+
+export type RoomEntry = RoomEntryInput & {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+};
+
+// Powers the Room List modal's Client dropdown once a Package is picked —
+// see GET /bookings/by-package/{package_id}.
+export type BookingByPackage = {
+  bookingId: string;
+  clientName: string;
+  adults: string;
+  children: string;
+  infants: string;
+  invoiceNumber: string;
 };
 
 export type DayImage = {
@@ -485,4 +537,15 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ grants }),
     }),
+
+  getBookingsByPackage: (packageId: string) =>
+    request<BookingByPackage[]>(`/bookings/by-package/${packageId}`),
+
+  listRooms: () => request<RoomEntry[]>("/rooms"),
+  getNextRoomSlNo: () => request<{ slNo: string }>("/rooms/next-sl-no"),
+  createRoom: (body: RoomEntryInput) =>
+    request<RoomEntry>("/rooms", { method: "POST", body: JSON.stringify(body) }),
+  updateRoom: (id: string, body: RoomEntryInput) =>
+    request<RoomEntry>(`/rooms/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteRoom: (id: string) => request<void>(`/rooms/${id}`, { method: "DELETE" }),
 };

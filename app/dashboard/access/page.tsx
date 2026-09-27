@@ -52,9 +52,9 @@ export default function AccessPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Selecting a person automatically pulls in whatever custom roles are
-  // already assigned to them (Account/Currency) and shows a permission
-  // card per role — nothing to configure manually before that.
+  // Selecting a person automatically pulls in every custom role already
+  // assigned to them and shows a permission card per role — nothing to
+  // configure manually before that.
   useEffect(() => {
     if (!selectedId) {
       setGrants(null);
@@ -104,8 +104,8 @@ export default function AccessPage() {
           <div className={styles.head}>
             <h3>Access control</h3>
             <p className={styles.hint}>
-              Pick a person to see the custom roles already assigned to them (Account, Currency),
-              then choose exactly which actions each role can perform.
+              Pick a person to see every custom role already assigned to them, then choose
+              exactly which actions each role can perform.
             </p>
           </div>
 
@@ -131,8 +131,8 @@ export default function AccessPage() {
               <div className={styles.empty}>Loading access…</div>
             ) : !grants || grants.length === 0 ? (
               <div className={styles.empty}>
-                {selectedUser?.name || "This person"} has no Account or Currency role assigned yet.
-                Assign one on the Users page first.
+                {selectedUser?.name || "This person"} has no custom role assigned yet. Assign one
+                on the Users page first.
               </div>
             ) : (
               <>

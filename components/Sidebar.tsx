@@ -94,6 +94,13 @@ const AccessIcon = (
   </svg>
 );
 
+const RoomIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 21V9l8-6 8 6v12" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9 21v-7h6v7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ChevronIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
@@ -105,8 +112,12 @@ const items: Item[] = [
   { label: "Packages", href: "/dashboard/packages", icon: PackagesIcon },
   { label: "Bookings", href: "/dashboard/bookings", icon: BookingsIcon },
   // No adminOnly/roleNames — common to every logged-in account (admin,
-  // plain user, Team Lead, Account/Currency role), per the request.
+  // plain user, Team Lead, Account/Currency/Room List role), per the request.
   { label: "Travel List", href: "/dashboard/travel-list", icon: TravelListIcon },
+  // Gated like Account/Currency — visible to admin + anyone assigned the
+  // "Room List" role, per the follow-up request once Access grants needed
+  // something real to restrict here.
+  { label: "Room List", href: "/dashboard/rooms", icon: RoomIcon, roleNames: ["room list"] },
   { label: "Users", href: "/dashboard/users", icon: UsersIcon, adminOnly: true },
   { label: "Roles", href: "/dashboard/roles", icon: RoleIcon, adminOnly: true },
   { label: "Access", href: "/dashboard/access", icon: AccessIcon, adminOnly: true },

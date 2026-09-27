@@ -1,0 +1,135 @@
+.room-doc {
+  width: 900px;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13.5px;
+}
+
+.room-header {
+  background: #10162a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 32px;
+}
+
+.room-logo {
+  height: 52px;
+  width: auto;
+  display: block;
+}
+
+.room-header-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.room-badge {
+  display: inline-block;
+  background: #f2c14e;
+  color: #10162a;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 16px;
+  border-radius: 4px;
+}
+
+.room-contact {
+  color: #f2c14e;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.room-address {
+  color: #b9c0d4;
+  font-size: 10.5px;
+  line-height: 1.5;
+  margin-top: 4px;
+  max-width: 320px;
+  margin-left: auto;
+}
+
+.room-package-title {
+  background: #10162a;
+  color: #f2c14e;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 32px;
+  border-top: 1px solid rgba(242, 193, 78, 0.3);
+}
+
+.room-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+.room-table th {
+  text-align: left;
+  background: #f2c14e;
+  color: #10162a;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.room-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f1f5f9;
+  vertical-align: middle;
+  font-size: 12px;
+}
+
+.room-table td:last-child {
+  border-right: none;
+}
+
+.room-table .num {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.room-table .rt {
+  font-weight: 700;
+  color: #10162a;
+  text-align: center;
+}
+
+/* Alternating background per CLIENT group (not per row) — see
+   buildCombinedRoomListHtml, which is the only place these classes are
+   used. Makes it obvious at a glance where one client's traveler block
+   ends and the next begins, without having to trace the rowspan cells. */
+.room-table tr.grp-a td {
+  background: #ffffff;
+}
+
+.room-table tr.grp-b td {
+  background: #fdf1d6;
+}
+
+.room-table .muted {
+  color: #94a3b8;
+  text-align: center;
+  padding: 24px 14px;
+}
+
+.room-thankyou {
+  background: #10162a;
+  color: #f2c14e;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 14px 32px;
+}
