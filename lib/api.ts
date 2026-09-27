@@ -118,7 +118,8 @@ export type CurrencyEntry = CurrencyEntryInput & {
   id: string;
   createdAt: string;
   createdBy: string;
-  approved: boolean;
+  approved: boolean; // "Currency Out" approval (the original one)
+  approvedIn: boolean; // "Currency In" approval
 };
 
 // Per-user, per-role granular CRUD permissions — a finer dial than just
@@ -551,6 +552,11 @@ export const api = {
     request<CurrencyEntry>("/currency-entries", { method: "POST", body: JSON.stringify(body) }),
   setCurrencyApproval: (id: string, approved: boolean) =>
     request<CurrencyEntry>(`/currency-entries/${id}/approval`, {
+      method: "PUT",
+      body: JSON.stringify({ approved }),
+    }),
+  setCurrencyApprovalIn: (id: string, approved: boolean) =>
+    request<CurrencyEntry>(`/currency-entries/${id}/approval-in`, {
       method: "PUT",
       body: JSON.stringify({ approved }),
     }),

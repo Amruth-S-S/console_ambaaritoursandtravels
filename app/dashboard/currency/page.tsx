@@ -286,17 +286,43 @@ export default function CurrencyLedgerPage() {
   }
 
   // Admin-only, enforced again server-side — the Currency role only ever
-  // sees the resulting green/grey badge below, never this control.
-  async function toggleApproval(entry: CurrencyEntry) {
-    setApprovalBusyId(entry.id);
+  // sees the resulting green/grey badge below, never this control. Two
+  // independent approvals per entry: "out" (the original `approved` field)
+  // and "in" (`approvedIn`).
+  async function toggleApproval(entry: CurrencyEntry, which: "in" | "out") {
+    setApprovalBusyId(`${entry.id}:${which}`);
     try {
-      const updated = await api.setCurrencyApproval(entry.id, !entry.approved);
+      const updated =
+        which === "in"
+          ? await api.setCurrencyApprovalIn(entry.id, !entry.approvedIn)
+          : await api.setCurrencyApproval(entry.id, !entry.approved);
       setEntries((list) => list.map((e) => (e.id === entry.id ? updated : e)));
     } catch (e) {
       notify("err", e instanceof Error ? e.message : "Failed to update approval");
     } finally {
       setApprovalBusyId(null);
     }
+  }
+
+  function approvalCell(entry: CurrencyEntry, which: "in" | "out") {
+    const on = which === "in" ? entry.approvedIn : entry.approved;
+    const label = which === "in" ? "Currency In" : "Currency Out";
+    return isAdmin ? (
+      <button
+        type="button"
+        className={`${styles.approveToggle} ${on ? styles.approveToggleOn : ""}`}
+        onClick={() => toggleApproval(entry, which)}
+        disabled={approvalBusyId === `${entry.id}:${which}`}
+        aria-label={`${label}: ${on ? "mark as not approved" : "mark as approved"}`}
+        title={on ? `${label} approved — click to revoke` : `${label} not approved — click to approve`}
+      >
+        <span className={styles.approveToggleDot} />
+      </button>
+    ) : (
+      <span className={`${styles.approveBadge} ${on ? styles.approveBadgeOn : styles.approveBadgeOff}`}>
+        {on ? "Approved" : "Pending"}
+      </span>
+    );
   }
 
   if (user && !allowed) return null;
@@ -358,7 +384,8 @@ export default function CurrencyLedgerPage() {
                     <th>Payment Mode</th>
                     <th>Hand Over To</th>
                     <th>Transfer To</th>
-                    <th>Approval</th>
+                    <th>Currency In</th>
+                    <th>Currency Out</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -380,32 +407,8 @@ export default function CurrencyLedgerPage() {
                       <td>{e.paymentMode || "—"}</td>
                       <td>{e.handOverTo || "—"}</td>
                       <td>{e.transferTo || "—"}</td>
-                      <td>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className={`${styles.approveToggle} ${
-                              e.approved ? styles.approveToggleOn : ""
-                            }`}
-                            onClick={() => toggleApproval(e)}
-                            disabled={approvalBusyId === e.id}
-                            aria-label={e.approved ? "Mark as not approved" : "Mark as approved"}
-                            title={
-                              e.approved ? "Approved — click to revoke" : "Not approved — click to approve"
-                            }
-                          >
-                            <span className={styles.approveToggleDot} />
-                          </button>
-                        ) : (
-                          <span
-                            className={`${styles.approveBadge} ${
-                              e.approved ? styles.approveBadgeOn : styles.approveBadgeOff
-                            }`}
-                          >
-                            {e.approved ? "Approved" : "Pending"}
-                          </span>
-                        )}
-                      </td>
+                      <td>{approvalCell(e, "in")}</td>
+                      <td>{approvalCell(e, "out")}</td>
                       <td>
                         <div className={styles.actions}>
                           {(isAdmin || perms.edit) && (
