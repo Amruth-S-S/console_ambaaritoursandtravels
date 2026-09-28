@@ -146,6 +146,9 @@ export default function TravelListPage() {
             {g.bookings.length} client{g.bookings.length === 1 ? "" : "s"} · {g.totalAdults} adults
             · {g.totalChildren} children · {g.totalInfants} infants
           </span>
+          <span className={styles.groupTotal} title="Total travellers (adults + children + infants)">
+            {g.totalAdults + g.totalChildren + g.totalInfants} pax
+          </span>
         </button>
         {open && (
           <table className={styles.miniTable}>

@@ -89,6 +89,7 @@ type FormState = {
   amount: string;
   transactionId: string;
   specialRequirements: string;
+  note: string;
   aadharDoc: BookingDocument[];
   panDoc: BookingDocument[];
   passportDoc: BookingDocument[];
@@ -131,6 +132,7 @@ const emptyForm: FormState = {
   amount: "",
   transactionId: "",
   specialRequirements: "",
+  note: "",
   aadharDoc: [],
   panDoc: [],
   passportDoc: [],
@@ -318,7 +320,8 @@ export default function BookingsPage() {
         b.packageTitle.toLowerCase().includes(q) ||
         b.userName.toLowerCase().includes(q) ||
         dateSearchText(b.travelDate).includes(q) ||
-        dateSearchText(b.invoiceDate).includes(q)
+        dateSearchText(b.invoiceDate).includes(q) ||
+        (b.note || "").toLowerCase().includes(q)
       );
     });
     if (!q) return matches;
@@ -442,6 +445,7 @@ export default function BookingsPage() {
       amount: b.amount,
       transactionId: b.transactionId,
       specialRequirements: b.specialRequirements || "",
+      note: b.note || "",
       // listBookings() omits ID documents for performance — placeholder
       // here, filled in from the full record fetched just below.
       aadharDoc: [],
@@ -804,6 +808,7 @@ export default function BookingsPage() {
         amount: form.amount.trim(),
         transactionId: form.transactionId.trim(),
         specialRequirements: form.specialRequirements.trim(),
+        note: form.note.trim(),
         aadharDoc: form.aadharDoc,
         panDoc: form.panDoc,
         passportDoc: form.passportDoc,
@@ -938,6 +943,7 @@ export default function BookingsPage() {
                   <th>Package Amount</th>
                   <th>Advance Paid</th>
                   <th>Balance Due</th>
+                  <th>Note</th>
                   {isAdmin && <th>Booked By</th>}
                   <th></th>
                 </tr>
@@ -970,6 +976,15 @@ export default function BookingsPage() {
                       <span className={styles.subDate}>
                         Due by {formatDateDMY(b.finalPaymentDate) || "—"}
                       </span>
+                    </td>
+                    <td>
+                      {b.note ? (
+                        <span className={styles.noteCell} title={b.note}>
+                          {b.note}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--ink-dim)" }}>—</span>
+                      )}
                     </td>
                     {isAdmin && (
                       <td>
@@ -1510,6 +1525,17 @@ export default function BookingsPage() {
               onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })}
             />
           </div>
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor="b-note">Note (optional)</label>
+          <textarea
+            id="b-note"
+            rows={3}
+            value={form.note}
+            placeholder="Internal note for the team — not printed on the invoice"
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+          />
         </div>
 
         {formErr && <div className={`${styles.msg} ${styles.err}`}>{formErr}</div>}
