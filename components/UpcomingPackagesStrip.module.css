@@ -1,0 +1,185 @@
+.wrap {
+  margin-bottom: 24px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.head h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Small live-indicator dot beside the heading. */
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(240, 168, 72, 0.6);
+  animation: ping 2s ease-out infinite;
+}
+
+.count {
+  font-size: 12px;
+  color: var(--ink-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* Scrolls sideways when there are more cards than fit. Padding leaves room
+   for the zoomed card so it isn't clipped by the scroll container. */
+.row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 10px 6px 14px;
+  margin: -10px -6px 0;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.card {
+  flex: 0 0 280px;
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--surface) 0%, var(--surface-2) 100%);
+  border: 1px solid rgba(240, 168, 72, 0.35);
+  scroll-snap-align: start;
+  transform-origin: center;
+  animation: breathe 3.2s ease-in-out infinite;
+  transition: transform 0.25s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* A running (or paused) animation would override this transform, so the
+   hovered card leaves the wave and zooms in on its own. */
+.card:hover {
+  animation: none;
+  transform: scale(1.06);
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--accent);
+}
+
+.month {
+  flex-shrink: 0;
+  width: 64px;
+  height: 72px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+
+.mon {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.year {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.body h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.date {
+  min-width: 28px;
+  text-align: center;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cost {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.cost strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+/* Gentle zoom in / zoom out. */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+
+@keyframes ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(240, 168, 72, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(240, 168, 72, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .dot {
+    animation: none;
+  }
+  .card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    flex-basis: 240px;
+  }
+}

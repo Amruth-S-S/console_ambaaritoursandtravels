@@ -1,0 +1,67 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 6px 0 4px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px dashed rgba(240, 168, 72, 0.6);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.btn:hover:not(:disabled) {
+  border-style: solid;
+}
+
+.btn:disabled {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.spin {
+  animation: passportSpin 1s linear infinite;
+}
+
+@keyframes passportSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hint,
+.ok,
+.err {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.hint {
+  color: var(--ink-dim);
+}
+
+.ok {
+  color: var(--chart-3);
+}
+
+.err {
+  color: var(--danger);
+}

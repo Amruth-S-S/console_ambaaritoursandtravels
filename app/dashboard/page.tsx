@@ -9,6 +9,7 @@ import PieChart, { PieDatum } from "@/components/PieChart";
 import RevenueLineChart, { LinePoint } from "@/components/RevenueLineChart";
 import Navbar from "@/components/Navbar";
 import Toast, { ToastState } from "@/components/Toast";
+import UpcomingPackagesStrip from "@/components/UpcomingPackagesStrip";
 import dash from "./dashboard.module.css";
 import styles from "./overview.module.css";
 
@@ -407,6 +408,7 @@ export default function OverviewPage() {
       <Navbar title="Overview" />
       <Toast toast={toast} />
       <div className={dash.content}>
+        <UpcomingPackagesStrip />
         <section className={styles.hero}>
           <span className={styles.glow} />
           <h1>

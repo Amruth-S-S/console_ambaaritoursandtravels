@@ -112,6 +112,22 @@ export type CurrencyEntryInput = {
   paymentMode: string;
   handOverTo: string;
   transferTo: string;
+  // Passport details — filled by the passport scan or by hand.
+  // passportNumber above holds the passport number itself.
+  surname: string;
+  givenName: string;
+  sex: string;
+  dob: string;
+  nationality: string;
+  placeOfBirth: string;
+  placeOfIssue: string;
+  dateOfIssue: string;
+  dateOfExpiry: string;
+  fatherName: string;
+  motherName: string;
+  spouseName: string;
+  address: string;
+  fileNo: string;
 };
 
 export type CurrencyEntry = CurrencyEntryInput & {
@@ -120,6 +136,45 @@ export type CurrencyEntry = CurrencyEntryInput & {
   createdBy: string;
   approved: boolean; // "Currency Out" approval (the original one)
   approvedIn: boolean; // "Currency In" approval
+};
+
+// DMC Account ledger — visible on the DMC Account menu (admin + users whose
+// assigned custom role is named "DMC Account"). Admin-only approval, same
+// as the Account and Currency ledgers.
+export type DmcAccountInput = {
+  slNo: string;
+  name: string;
+  travelDate: string;
+  paymentDate: string;
+  paymentFrom: string;
+  paymentTo: string;
+  paymentMode: string;
+  destination: string;
+  numberOfTravelers: string;
+  perPersonQuotation: string;
+  totalAmount: string;
+  note: string;
+};
+
+export type DmcAccount = DmcAccountInput & {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  approved: boolean;
+};
+
+// Admin-managed upcoming departures, shown to every user at the top of the
+// Overview dashboard. month is "yyyy-mm"; dates is free text like "11, 18, 25".
+export type UpcomingPackageInput = {
+  month: string;
+  dates: string;
+  packageName: string;
+  landCost: string;
+};
+
+export type UpcomingPackage = UpcomingPackageInput & {
+  id: string;
+  createdAt: string;
 };
 
 // Per-user, per-role granular CRUD permissions — a finer dial than just
@@ -151,6 +206,18 @@ export type RoomTraveler = {
   dob: string;
   arrivalAirport: string;
   departureAirport: string;
+  // Remaining passport fields — filled by the passport scan or by hand.
+  // Optional: room lists saved before these existed don't have them.
+  nationality?: string;
+  placeOfBirth?: string;
+  placeOfIssue?: string;
+  dateOfIssue?: string;
+  dateOfExpiry?: string;
+  fatherName?: string;
+  motherName?: string;
+  spouseName?: string;
+  address?: string;
+  fileNo?: string;
 };
 
 export type RoomEntryInput = {
@@ -566,6 +633,27 @@ export const api = {
     request<CurrencyEntry>(`/currency-entries/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteCurrencyEntry: (id: string) =>
     request<void>(`/currency-entries/${id}`, { method: "DELETE" }),
+
+  listUpcomingPackages: () => request<UpcomingPackage[]>("/upcoming-packages"),
+  createUpcomingPackage: (body: UpcomingPackageInput) =>
+    request<UpcomingPackage>("/upcoming-packages", { method: "POST", body: JSON.stringify(body) }),
+  updateUpcomingPackage: (id: string, body: UpcomingPackageInput) =>
+    request<UpcomingPackage>(`/upcoming-packages/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteUpcomingPackage: (id: string) =>
+    request<void>(`/upcoming-packages/${id}`, { method: "DELETE" }),
+
+  listDmcAccounts: () => request<DmcAccount[]>("/dmc-accounts"),
+  getNextDmcSlNo: () => request<{ slNo: string }>("/dmc-accounts/next-sl-no"),
+  createDmcAccount: (body: DmcAccountInput) =>
+    request<DmcAccount>("/dmc-accounts", { method: "POST", body: JSON.stringify(body) }),
+  setDmcApproval: (id: string, approved: boolean) =>
+    request<DmcAccount>(`/dmc-accounts/${id}/approval`, {
+      method: "PUT",
+      body: JSON.stringify({ approved }),
+    }),
+  updateDmcAccount: (id: string, body: DmcAccountInput) =>
+    request<DmcAccount>(`/dmc-accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteDmcAccount: (id: string) => request<void>(`/dmc-accounts/${id}`, { method: "DELETE" }),
 
   // Self-service — any logged-in account can read its own grants, used to
   // hide buttons for actions that would just 403 anyway.

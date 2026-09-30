@@ -12,6 +12,9 @@ import {
 } from "@/lib/roomListPdf";
 import Navbar from "@/components/Navbar";
 import RefreshButton from "@/components/RefreshButton";
+import PassportScan from "@/components/PassportScan";
+import PassportExtraFields from "@/components/PassportExtraFields";
+import { EMPTY_PASSPORT_EXTRAS, genderFromSex, PassportDetails, pickExtras } from "@/lib/passport";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
@@ -90,6 +93,7 @@ function emptyTraveler(category: RoomTraveler["category"]): RoomTraveler {
     dob: "",
     arrivalAirport: "",
     departureAirport: "",
+    ...EMPTY_PASSPORT_EXTRAS,
   };
 }
 
@@ -374,6 +378,28 @@ export default function RoomsPage() {
     setForm((f) => ({
       ...f,
       travelers: f.travelers.map((t, i) => (i === index ? { ...t, [field]: value } : t)),
+    }));
+  }
+
+  // Fills one traveler card from a passport scan. Blank scan values never
+  // wipe what's already typed (e.g. page 2 alone has no name on it).
+  function applyPassport(index: number, d: PassportDetails) {
+    const scanned: Partial<RoomTraveler> = {
+      givenName: d.givenName,
+      surname: d.surname,
+      gender: genderFromSex(d.sex),
+      passportNo: d.passportNo,
+      dob: d.dob,
+      ...pickExtras(d),
+    };
+    setForm((f) => ({
+      ...f,
+      travelers: f.travelers.map((t, i) => {
+        if (i !== index) return t;
+        const next = { ...t };
+        for (const [k, v] of Object.entries(scanned)) if (v) (next as Record<string, string>)[k] = v;
+        return next;
+      }),
     }));
   }
 
@@ -803,6 +829,7 @@ export default function RoomsPage() {
                         <div className={styles.travelerCardTitle}>
                           {CATEGORY_LABELS[category].replace(/s$/, "")} {n + 1}
                         </div>
+                        <PassportScan onScanned={(d) => applyPassport(i, d)} />
                         <div className={styles.row3}>
                           <div className={styles.field}>
                             <label>Given Name</label>
@@ -866,6 +893,14 @@ export default function RoomsPage() {
                             />
                           </div>
                         </div>
+                        <div className={styles.passportDivider}>Passport details</div>
+                        <PassportExtraFields
+                          idPrefix={`t${i}`}
+                          values={{ ...EMPTY_PASSPORT_EXTRAS, ...pickExtras(t) }}
+                          onChange={(key, value) => updateTraveler(i, key, value)}
+                          rowClass={styles.row3}
+                          fieldClass={styles.field}
+                        />
                       </div>
                     );
                   })}

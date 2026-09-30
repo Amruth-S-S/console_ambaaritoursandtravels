@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { api, CurrencyEntry } from "@/lib/api";
+import { api, CurrencyEntry, CurrencyEntryInput } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import RefreshButton from "@/components/RefreshButton";
+import PassportScan from "@/components/PassportScan";
+import PassportExtraFields from "@/components/PassportExtraFields";
+import { EMPTY_PASSPORT_EXTRAS, PassportDetails, pickExtras } from "@/lib/passport";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
 // Reusing the Account ledger's styling — same shape of page (search,
@@ -67,23 +70,7 @@ const CURRENCY_OPTIONS = [
 // Same list as the Account ledger's Payment Mode dropdown.
 const PAYMENT_MODE_OPTIONS = ["Cash", "UPI", "Net Banking", "Cheque", "Account Transfer"];
 
-type FormState = {
-  slNo: string;
-  travelDate: string;
-  passportNumber: string;
-  clientName: string;
-  name: string;
-  phoneNumber: string;
-  currency: string;
-  amount: string;
-  clientAmount: string;
-  currencyConversion: string;
-  bankConversion: string;
-  companyCurrencyConversion: string;
-  paymentMode: string;
-  handOverTo: string;
-  transferTo: string;
-};
+type FormState = CurrencyEntryInput;
 
 const emptyForm: FormState = {
   slNo: "",
@@ -101,7 +88,18 @@ const emptyForm: FormState = {
   paymentMode: "Cash",
   handOverTo: "",
   transferTo: "",
+  surname: "",
+  givenName: "",
+  sex: "",
+  dob: "",
+  ...EMPTY_PASSPORT_EXTRAS,
 };
+
+const SEX_OPTIONS = [
+  { value: "M", label: "Male (M)" },
+  { value: "F", label: "Female (F)" },
+  { value: "X", label: "Other (X)" },
+];
 
 export default function CurrencyLedgerPage() {
   const { user } = useAuth();
@@ -198,6 +196,7 @@ export default function CurrencyLedgerPage() {
         e.phoneNumber.toLowerCase().includes(q) ||
         e.currency.toLowerCase().includes(q) ||
         e.handOverTo.toLowerCase().includes(q) ||
+        `${e.givenName || ""} ${e.surname || ""}`.toLowerCase().includes(q) ||
         e.transferTo.toLowerCase().includes(q) ||
         e.paymentMode.toLowerCase().includes(q)
     );
@@ -220,25 +219,34 @@ export default function CurrencyLedgerPage() {
   function openEdit(entry: CurrencyEntry) {
     setMode("edit");
     setEditingId(entry.id);
-    setForm({
-      slNo: entry.slNo,
-      travelDate: entry.travelDate,
-      passportNumber: entry.passportNumber,
-      clientName: entry.clientName,
-      name: entry.name,
-      phoneNumber: entry.phoneNumber,
-      currency: entry.currency,
-      amount: entry.amount,
-      clientAmount: entry.clientAmount,
-      currencyConversion: entry.currencyConversion,
-      bankConversion: entry.bankConversion,
-      companyCurrencyConversion: entry.companyCurrencyConversion,
-      paymentMode: entry.paymentMode,
-      handOverTo: entry.handOverTo,
-      transferTo: entry.transferTo,
-    });
+    // Every form key from the entry — older entries lack the passport
+    // fields, so fall back to the empty value for those.
+    setForm(
+      Object.fromEntries(
+        (Object.keys(emptyForm) as (keyof FormState)[]).map((k) => [k, entry[k] ?? emptyForm[k]])
+      ) as FormState
+    );
     setFormErr("");
     setModalOpen(true);
+  }
+
+  // Fills the form from a passport scan. Blank scan values never wipe what's
+  // already typed (e.g. page 2 alone has no name or number on it).
+  function applyPassport(d: PassportDetails) {
+    const fullName = [d.givenName, d.surname].filter(Boolean).join(" ");
+    const scanned: Partial<FormState> = {
+      passportNumber: d.passportNo,
+      surname: d.surname,
+      givenName: d.givenName,
+      sex: d.sex,
+      dob: d.dob,
+      ...pickExtras(d),
+    };
+    setForm((f) => {
+      const next = { ...f, name: f.name || fullName };
+      for (const [k, v] of Object.entries(scanned)) if (v) (next as Record<string, string>)[k] = v;
+      return next;
+    });
   }
 
   function closeModal() {
@@ -448,6 +456,7 @@ export default function CurrencyLedgerPage() {
         title={mode === "create" ? "Add currency entry" : "Edit currency entry"}
         maxWidth={720}
       >
+        <PassportScan onScanned={applyPassport} />
         <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="c-slno">Sl No</label>
@@ -607,6 +616,55 @@ export default function CurrencyLedgerPage() {
             />
           </div>
         </div>
+
+        <div className={styles.sectionLabel}>Passport details</div>
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="c-givenname">Given Name</label>
+            <input
+              id="c-givenname"
+              value={form.givenName}
+              onChange={(e) => setForm({ ...form, givenName: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="c-surname">Surname</label>
+            <input
+              id="c-surname"
+              value={form.surname}
+              onChange={(e) => setForm({ ...form, surname: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="c-sex">Sex</label>
+            <select id="c-sex" value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}>
+              <option value="">Select…</option>
+              {SEX_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="c-dob">Date of Birth</label>
+            <input
+              id="c-dob"
+              type="date"
+              value={form.dob}
+              onChange={(e) => setForm({ ...form, dob: e.target.value })}
+            />
+          </div>
+        </div>
+        <PassportExtraFields
+          idPrefix="c"
+          values={pickExtras(form)}
+          onChange={(key, value) => setForm((f) => ({ ...f, [key]: value }))}
+          rowClass={styles.row3}
+          fieldClass={styles.field}
+        />
 
         {formErr && <div className={`${styles.msg} ${styles.err}`}>{formErr}</div>}
 
