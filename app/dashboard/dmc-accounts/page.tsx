@@ -12,6 +12,33 @@ import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
 // Same page shape as the Account/Currency ledgers — reuse their styling.
 import styles from "../accounts/accounts.module.css";
+// Same Files (upload) and View windows as the Account ledger.
+import AttachmentsModal from "../accounts/AttachmentsModal";
+import EntryDetailsModal, { dateTime } from "../accounts/EntryDetailsModal";
+import { money } from "../accounts/ViewEntryModal";
+
+const dmcFileApi = {
+  upload: api.uploadDmcAttachment,
+  get: api.getDmcAttachment,
+  remove: api.deleteDmcAttachment,
+};
+
+const ViewIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" strokeLinejoin="round" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const AttachIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path
+      d="m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 const SearchIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -54,8 +81,8 @@ const emptyForm: DmcAccountInput = {
   numberOfTravelers: "",
   perPersonQuotation: "",
   totalAmount: "",
-  quotationAmount: "",
-  amountPaid: "",
+  debit: "",
+  credit: "",
   balance: "",
   note: "",
 };
@@ -65,13 +92,13 @@ function toNumber(v: string): number {
   return Number((v || "").replace(/[^0-9.]/g, "")) || 0;
 }
 
-// Balance = Quotation Amount - Amount Paid; blank until either is entered.
+// Balance = Debit - Credit; blank until either is entered.
 function computedBalance(f: DmcAccountInput): string {
-  if (!f.quotationAmount.trim() && !f.amountPaid.trim()) return "";
-  return String(toNumber(f.quotationAmount) - toNumber(f.amountPaid));
+  if (!f.debit.trim() && !f.credit.trim()) return "";
+  return String(toNumber(f.debit) - toNumber(f.credit));
 }
 
-// Signed amounts for display — an overpayment shows as a negative balance.
+// Signed amounts for display — more credit than debit shows as negative.
 function formatSigned(v: string): string {
   if (!v) return "—";
   const n = Number(v.replace(/[^0-9.-]/g, "")) || 0;
@@ -106,6 +133,12 @@ export default function DmcAccountsPage() {
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
+  // Files / View windows, tracked by id so upload/delete updates written
+  // back into `entries` show straight away. "Upload / manage files" in View
+  // swaps to Files, and closing Files returns to View (filesFromView).
+  const [filesEntryId, setFilesEntryId] = useState<string | null>(null);
+  const [viewEntryId, setViewEntryId] = useState<string | null>(null);
+  const [filesFromView, setFilesFromView] = useState(false);
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -350,8 +383,8 @@ export default function DmcAccountsPage() {
                     <th>No. of Travellers</th>
                     <th>Per Person Quotation</th>
                     <th>Total Amount</th>
-                    <th>Quotation Amount</th>
-                    <th>Amount Paid</th>
+                    <th>Debit</th>
+                    <th>Credit</th>
                     <th>Balance</th>
                     <th>Note</th>
                     <th>Approval</th>
@@ -371,8 +404,8 @@ export default function DmcAccountsPage() {
                       <td>{e.numberOfTravelers || "—"}</td>
                       <td>{e.perPersonQuotation ? `₹ ${toNumber(e.perPersonQuotation).toLocaleString("en-IN")}` : "—"}</td>
                       <td>{e.totalAmount ? `₹ ${toNumber(e.totalAmount).toLocaleString("en-IN")}` : "—"}</td>
-                      <td>{e.quotationAmount ? `₹ ${toNumber(e.quotationAmount).toLocaleString("en-IN")}` : "—"}</td>
-                      <td>{e.amountPaid ? `₹ ${toNumber(e.amountPaid).toLocaleString("en-IN")}` : "—"}</td>
+                      <td>{e.debit ? `₹ ${toNumber(e.debit).toLocaleString("en-IN")}` : "—"}</td>
+                      <td>{e.credit ? `₹ ${toNumber(e.credit).toLocaleString("en-IN")}` : "—"}</td>
                       <td>{formatSigned(e.balance)}</td>
                       <td title={e.note} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {e.note || "—"}
@@ -399,6 +432,34 @@ export default function DmcAccountsPage() {
                       </td>
                       <td>
                         <div className={styles.actions}>
+                          <button
+                            className={styles.iconBtn}
+                            onClick={() => setViewEntryId(e.id)}
+                            aria-label="View entry details"
+                            title="View details and files"
+                          >
+                            {ViewIcon}
+                          </button>
+                          <button
+                            className={`${styles.iconBtn} ${styles.attachBtn} ${
+                              e.attachments?.length ? styles.attachBtnHas : ""
+                            }`}
+                            onClick={() => {
+                              setFilesFromView(false);
+                              setFilesEntryId(e.id);
+                            }}
+                            aria-label="Upload or view files"
+                            title={
+                              e.attachments?.length
+                                ? `${e.attachments.length} file${e.attachments.length === 1 ? "" : "s"} — click to view or upload`
+                                : "Upload files"
+                            }
+                          >
+                            {AttachIcon}
+                            {e.attachments?.length > 0 && (
+                              <span className={styles.attachCount}>{e.attachments.length}</span>
+                            )}
+                          </button>
                           {(isAdmin || perms.edit) && (
                             <button className={styles.iconBtn} onClick={() => openEdit(e)} aria-label="Edit entry" title="Edit">
                               {EditIcon}
@@ -494,23 +555,23 @@ export default function DmcAccountsPage() {
         </div>
         <div className={styles.row3}>
           <div className={styles.field}>
-            <label htmlFor="d-quotation">Quotation Amount (₹)</label>
+            <label htmlFor="d-debit">Debit (₹)</label>
             <input
-              id="d-quotation"
+              id="d-debit"
               inputMode="decimal"
-              value={form.quotationAmount}
+              value={form.debit}
               placeholder="e.g. 100000"
-              onChange={(e) => setForm((f) => ({ ...f, quotationAmount: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, debit: e.target.value }))}
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="d-paid">Amount Paid (₹)</label>
+            <label htmlFor="d-credit">Credit (₹)</label>
             <input
-              id="d-paid"
+              id="d-credit"
               inputMode="decimal"
-              value={form.amountPaid}
+              value={form.credit}
               placeholder="e.g. 60000"
-              onChange={(e) => setForm((f) => ({ ...f, amountPaid: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, credit: e.target.value }))}
             />
           </div>
           <div className={styles.field}>
@@ -519,8 +580,8 @@ export default function DmcAccountsPage() {
               id="d-balance"
               readOnly
               value={formatSigned(computedBalance(form)) === "—" ? "" : formatSigned(computedBalance(form))}
-              placeholder="Quotation − Paid"
-              title="Calculated automatically: Quotation Amount − Amount Paid"
+              placeholder="Debit − Credit"
+              title="Calculated automatically: Debit − Credit"
             />
           </div>
         </div>
@@ -546,6 +607,66 @@ export default function DmcAccountsPage() {
           </button>
         </div>
       </Modal>
+
+      {(() => {
+        const v = entries.find((x) => x.id === viewEntryId) ?? null;
+        return (
+          <EntryDetailsModal
+            entry={v}
+            fileApi={dmcFileApi}
+            onClose={() => setViewEntryId(null)}
+            onManageFiles={(entry) => {
+              setViewEntryId(null);
+              setFilesFromView(true);
+              setFilesEntryId(entry.id);
+            }}
+            approved={!!v?.approved}
+            amounts={
+              v
+                ? [
+                    { label: "Debit", value: money(v.debit), tone: "debit" },
+                    { label: "Credit", value: money(v.credit), tone: "credit" },
+                    { label: "Balance", value: money(v.balance) },
+                  ]
+                : []
+            }
+            details={
+              v
+                ? [
+                    ["Sl No", v.slNo],
+                    ["Name", v.name],
+                    ["Destination", v.destination],
+                    ["Travel Date", formatDateDMY(v.travelDate)],
+                    ["Mode of Payment", v.paymentMode],
+                    ["Payment From", v.paymentFrom],
+                    ["Payment To", v.paymentTo],
+                    ["No. of Travellers", v.numberOfTravelers],
+                    ["Per Person Quotation", money(v.perPersonQuotation)],
+                    ["Total Amount", money(v.totalAmount)],
+                    ["Created", dateTime(v.createdAt)],
+                  ]
+                : []
+            }
+            wide={v ? [["Note", v.note]] : []}
+          />
+        );
+      })()}
+
+      <AttachmentsModal
+        entry={entries.find((x) => x.id === filesEntryId) ?? null}
+        title={(() => {
+          const e = entries.find((x) => x.id === filesEntryId);
+          return e ? e.name || `Sl No ${e.slNo}` : "";
+        })()}
+        fileApi={dmcFileApi}
+        onClose={() => {
+          if (filesFromView) setViewEntryId(filesEntryId);
+          setFilesFromView(false);
+          setFilesEntryId(null);
+        }}
+        onUpdated={(updated) => setEntries((list) => list.map((x) => (x.id === updated.id ? updated : x)))}
+        canDelete={isAdmin || perms.delete}
+      />
     </>
   );
 }

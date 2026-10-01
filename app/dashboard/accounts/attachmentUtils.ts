@@ -1,4 +1,20 @@
-// Shared by the Files (upload) modal and the View modal.
+// Shared by the Files (upload) modal and the View modal, on both the
+// Account and DMC Account ledgers.
+import type { AccountAttachment, AccountAttachmentMeta } from "@/lib/api";
+
+// Any ledger entry that can carry files.
+export type AttachableEntry = {
+  id: string;
+  slNo: string;
+  attachments: AccountAttachmentMeta[];
+};
+
+// The per-ledger file endpoints (api.uploadAccountAttachment / ...Dmc...).
+export type AttachmentApi<E extends AttachableEntry> = {
+  upload: (id: string, file: { name: string; type: string; data: string }) => Promise<E>;
+  get: (id: string, attachmentId: string) => Promise<AccountAttachment>;
+  remove: (id: string, attachmentId: string) => Promise<E>;
+};
 
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

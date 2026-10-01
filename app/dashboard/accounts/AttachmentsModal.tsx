@@ -1,12 +1,20 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { api, AccountEntry, AccountAttachmentMeta } from "@/lib/api";
+import type { AccountAttachmentMeta } from "@/lib/api";
 import Modal from "@/components/Modal";
 import styles from "./accounts.module.css";
-import { dataUrlToBlob, formatSize, isPreviewable, kindLabel, triggerDownload } from "./attachmentUtils";
+import {
+  AttachableEntry,
+  AttachmentApi,
+  dataUrlToBlob,
+  formatSize,
+  isPreviewable,
+  kindLabel,
+  triggerDownload,
+} from "./attachmentUtils";
 
-// Same limits the backend enforces (routes/accounts.py) — checked here too
+// Same limits the backend enforces (app/attachments.py) — checked here too
 // so an oversized file fails instantly instead of after a long upload.
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const ACCEPT = "application/pdf,.pdf,.doc,.docx,image/*";
@@ -40,15 +48,21 @@ function fixMime(file: File, dataUrl: string): { type: string; data: string } {
   return { type, data };
 }
 
-export default function AttachmentsModal({
+// Upload / view / download / delete files on one ledger entry. Works for any
+// ledger — the page passes its own endpoints (fileApi) and title.
+export default function AttachmentsModal<E extends AttachableEntry>({
   entry,
+  title,
+  fileApi,
   onClose,
   onUpdated,
   canDelete,
 }: {
-  entry: AccountEntry | null;
+  entry: E | null;
+  title: string;
+  fileApi: AttachmentApi<E>;
   onClose: () => void;
-  onUpdated: (entry: AccountEntry) => void;
+  onUpdated: (entry: E) => void;
   canDelete: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +87,7 @@ export default function AttachmentsModal({
           failures.push(`${file.name}: only PDF, Word and image files are allowed`);
           continue;
         }
-        current = await api.uploadAccountAttachment(current.id, { name: file.name, type, data });
+        current = await fileApi.upload(current.id, { name: file.name, type, data });
         onUpdated(current);
       } catch (e) {
         failures.push(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
@@ -89,7 +103,7 @@ export default function AttachmentsModal({
     setBusyId(att.id);
     setErr("");
     try {
-      const full = await api.getAccountAttachment(entry.id, att.id);
+      const full = await fileApi.get(entry.id, att.id);
       const url = URL.createObjectURL(dataUrlToBlob(full.data));
       // Word files can't render in a browser tab, so they always download.
       if (download || !isPreviewable(att.type)) {
@@ -110,7 +124,7 @@ export default function AttachmentsModal({
     setBusyId(att.id);
     setErr("");
     try {
-      onUpdated(await api.deleteAccountAttachment(entry.id, att.id));
+      onUpdated(await fileApi.remove(entry.id, att.id));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to delete file");
     } finally {
@@ -119,10 +133,9 @@ export default function AttachmentsModal({
   }
 
   const attachments = entry?.attachments ?? [];
-  const who = entry ? entry.clientName || entry.name || entry.agent || `Sl No ${entry.slNo}` : "";
 
   return (
-    <Modal open={!!entry} onClose={uploading ? () => {} : onClose} title={`Files — ${who}`} maxWidth={560}>
+    <Modal open={!!entry} onClose={uploading ? () => {} : onClose} title={`Files — ${title}`} maxWidth={560}>
       <input
         ref={inputRef}
         type="file"

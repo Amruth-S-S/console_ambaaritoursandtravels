@@ -152,9 +152,9 @@ export type DmcAccountInput = {
   numberOfTravelers: string;
   perPersonQuotation: string;
   totalAmount: string;
-  quotationAmount: string;
-  amountPaid: string;
-  balance: string; // quotationAmount - amountPaid, computed (also server-side)
+  debit: string;
+  credit: string;
+  balance: string; // debit - credit, computed (also server-side)
   note: string;
 };
 
@@ -162,6 +162,8 @@ export type DmcAccount = DmcAccountInput & {
   id: string;
   createdAt: string;
   createdBy: string;
+  // Same receipts/proof uploads as the Account ledger.
+  attachments: AccountAttachmentMeta[];
   approved: boolean;
 };
 
@@ -692,6 +694,15 @@ export const api = {
   updateDmcAccount: (id: string, body: DmcAccountInput) =>
     request<DmcAccount>(`/dmc-accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteDmcAccount: (id: string) => request<void>(`/dmc-accounts/${id}`, { method: "DELETE" }),
+  uploadDmcAttachment: (id: string, file: { name: string; type: string; data: string }) =>
+    request<DmcAccount>(`/dmc-accounts/${id}/attachments`, {
+      method: "POST",
+      body: JSON.stringify(file),
+    }),
+  getDmcAttachment: (id: string, attachmentId: string) =>
+    request<AccountAttachment>(`/dmc-accounts/${id}/attachments/${attachmentId}`),
+  deleteDmcAttachment: (id: string, attachmentId: string) =>
+    request<DmcAccount>(`/dmc-accounts/${id}/attachments/${attachmentId}`, { method: "DELETE" }),
 
   // Self-service — any logged-in account can read its own grants, used to
   // hide buttons for actions that would just 403 anyway.

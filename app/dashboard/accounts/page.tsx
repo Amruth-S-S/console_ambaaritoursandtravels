@@ -14,6 +14,12 @@ import styles from "./accounts.module.css";
 import AttachmentsModal from "./AttachmentsModal";
 import ViewEntryModal from "./ViewEntryModal";
 
+const accountFileApi = {
+  upload: api.uploadAccountAttachment,
+  get: api.getAccountAttachment,
+  remove: api.deleteAccountAttachment,
+};
+
 const SearchIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="7" />
@@ -737,6 +743,11 @@ export default function AccountsPage() {
 
       <AttachmentsModal
         entry={entries.find((x) => x.id === filesEntryId) ?? null}
+        title={(() => {
+          const e = entries.find((x) => x.id === filesEntryId);
+          return e ? e.clientName || e.name || e.agent || `Sl No ${e.slNo}` : "";
+        })()}
+        fileApi={accountFileApi}
         onClose={() => {
           if (filesFromView) setViewEntryId(filesEntryId);
           setFilesFromView(false);
