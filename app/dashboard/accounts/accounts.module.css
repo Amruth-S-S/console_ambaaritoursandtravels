@@ -690,3 +690,48 @@
   text-transform: uppercase;
   color: var(--ink-dim);
 }
+
+/* Offer Section modal — one package + target amount per row. */
+.offerRow {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.offerRow .field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.offerRow .field:first-child {
+  flex: 1.6;
+}
+
+.offerRowRemove {
+  flex-shrink: 0;
+  height: 40px;
+  width: 40px;
+  margin-bottom: 1px;
+}
+
+.addRowBtn {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1.5px dashed var(--border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.addRowBtn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}

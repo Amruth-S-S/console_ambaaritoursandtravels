@@ -177,6 +177,33 @@ export type UpcomingPackage = UpcomingPackageInput & {
   createdAt: string;
 };
 
+// Admin-only Offer Section — one row per package + target amount.
+export type OfferInput = {
+  packageName: string;
+  targetAmount: string;
+  // Offer period, yyyy-mm-dd, both inclusive; blank = open-ended. Only
+  // bookings made in this window count on the admin Overview.
+  fromDate: string;
+  toDate: string;
+};
+
+export type Offer = OfferInput & {
+  id: string;
+  createdAt: string;
+};
+
+// A regular user's own progress on one running offer — percentage only;
+// amounts are never sent to this view.
+export type MyOfferProgress = {
+  id: string;
+  packageName: string;
+  fromDate: string;
+  toDate: string;
+  bookings: number;
+  percent: number;
+  met: boolean;
+};
+
 // Per-user, per-role granular CRUD permissions — a finer dial than just
 // having the Account/Currency role at all. Only roles that gate a real
 // list/create/edit/delete feature show up here (see GOVERNED_ROLES in
@@ -641,6 +668,15 @@ export const api = {
     request<UpcomingPackage>(`/upcoming-packages/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteUpcomingPackage: (id: string) =>
     request<void>(`/upcoming-packages/${id}`, { method: "DELETE" }),
+
+  listOffers: () => request<Offer[]>("/offers"),
+  getMyOfferProgress: () => request<MyOfferProgress[]>("/offers/my-progress"),
+  // Saves every row from the Add Offer Section modal in one request.
+  createOffers: (offers: OfferInput[]) =>
+    request<Offer[]>("/offers/bulk", { method: "POST", body: JSON.stringify({ offers }) }),
+  updateOffer: (id: string, body: OfferInput) =>
+    request<Offer>(`/offers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteOffer: (id: string) => request<void>(`/offers/${id}`, { method: "DELETE" }),
 
   listDmcAccounts: () => request<DmcAccount[]>("/dmc-accounts"),
   getNextDmcSlNo: () => request<{ slNo: string }>("/dmc-accounts/next-sl-no"),

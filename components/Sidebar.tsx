@@ -94,6 +94,13 @@ const UpcomingIcon = (
   </svg>
 );
 
+const OfferIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" strokeLinejoin="round" />
+    <circle cx="7.5" cy="7.5" r="1.5" />
+  </svg>
+);
+
 const DmcIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 10.5 12 5l9 5.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -128,6 +135,7 @@ const items: Item[] = [
   { label: "Bookings", href: "/dashboard/bookings", icon: BookingsIcon },
   // Admin manages the list; every user sees it on the Overview dashboard.
   { label: "Upcoming Packages", href: "/dashboard/upcoming-packages", icon: UpcomingIcon, adminOnly: true },
+  { label: "Offer Section", href: "/dashboard/offers", icon: OfferIcon, adminOnly: true },
   // No adminOnly/roleNames — common to every logged-in account (admin,
   // plain user, Team Lead, Account/Currency/Room List role), per the request.
   { label: "Travel List", href: "/dashboard/travel-list", icon: TravelListIcon },

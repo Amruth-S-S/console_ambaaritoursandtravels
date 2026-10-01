@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { api, Booking, Package, User } from "@/lib/api";
+import { api, Booking, Offer, Package, User } from "@/lib/api";
 import { computeInvoiceTotals } from "@/lib/invoice";
+import { formatDateDMY } from "@/lib/dates";
 import BookingsBarChart, { BarDatum } from "@/components/BookingsBarChart";
 import PieChart, { PieDatum } from "@/components/PieChart";
 import RevenueLineChart, { LinePoint } from "@/components/RevenueLineChart";
 import Navbar from "@/components/Navbar";
 import Toast, { ToastState } from "@/components/Toast";
+import RefreshButton from "@/components/RefreshButton";
+import MyOfferProgress from "@/components/MyOfferProgress";
 import UpcomingPackagesStrip from "@/components/UpcomingPackagesStrip";
 import dash from "./dashboard.module.css";
 import styles from "./overview.module.css";
@@ -20,6 +23,14 @@ function parseAmount(value: string): number {
   return parseFloat((value || "").replace(/,/g, "").trim()) || 0;
 }
 
+// "bookings 01-10-2026 to 31-10-2026", "… from X onwards", "… up to Y".
+function offerPeriodLabel(from: string, to: string): string {
+  if (from && to) return `bookings ${formatDateDMY(from)} to ${formatDateDMY(to)}`;
+  if (from) return `bookings from ${formatDateDMY(from)} onwards`;
+  if (to) return `bookings up to ${formatDateDMY(to)}`;
+  return "all bookings (no offer dates set)";
+}
+
 export default function OverviewPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -28,6 +39,13 @@ export default function OverviewPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
+  // Admin-only: Offer Section targets, and which one the "Offer targets"
+  // panel is showing.
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [selectedOfferId, setSelectedOfferId] = useState("");
+  // "period" counts only bookings made within the offer's From/To dates;
+  // "all" counts every booking of that package, whenever it was made.
+  const [offerRange, setOfferRange] = useState<"period" | "all">("period");
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -68,6 +86,90 @@ export default function OverviewPage() {
   useEffect(() => {
     if (user) load();
   }, [user]);
+
+  // Loaded apart from load() above — /offers is admin-only, and a 403 for
+  // a regular user mustn't take the rest of the dashboard down with it.
+  async function loadOffers() {
+    try {
+      const list = await api.listOffers();
+      setOffers(list);
+      setSelectedOfferId((cur) => (cur && list.some((o) => o.id === cur) ? cur : list[0]?.id || ""));
+    } catch {
+      // Panel just shows its empty state.
+    }
+  }
+
+  // Re-runs after the Admin overview Refresh too (refreshing flips back to false).
+  useEffect(() => {
+    if (isAdmin && !refreshing) loadOffers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, refreshing]);
+
+  // The selected offer's package, measured per user: the target amount is
+  // each user's individual target. Bookings are matched by package name
+  // (case/space-insensitive); a user's "booked" value is the package amount
+  // of their bookings for it. Every regular user gets a row — someone with
+  // no bookings yet shows at 0% — plus anyone else (e.g. an admin) who has
+  // booked it.
+  type OfferUserRow = {
+    id: string;
+    name: string;
+    count: number;
+    booked: number;
+    remaining: number;
+    pct: number;
+    met: boolean;
+  };
+  const offerStats = useMemo(() => {
+    const offer = offers.find((o) => o.id === selectedOfferId);
+    if (!offer) return null;
+    const target = Number((offer.targetAmount || "").replace(/[^0-9.]/g, "")) || 0;
+    const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
+    const name = norm(offer.packageName);
+    // A booking is "made" on its invoice date (what the Bookings page shows
+    // as Date), or the day it was created if that's blank. yyyy-mm-dd
+    // strings compare correctly as text.
+    const madeOn = (bk: Booking) => (bk.invoiceDate || bk.createdAt || "").slice(0, 10);
+    const inPeriod = (bk: Booking) => {
+      if (offerRange === "all") return true;
+      const d = madeOn(bk);
+      if (!d) return !offer.fromDate && !offer.toDate;
+      return (!offer.fromDate || d >= offer.fromDate) && (!offer.toDate || d <= offer.toDate);
+    };
+
+    const rows = new Map<string, { id: string; name: string; count: number; booked: number }>();
+    for (const u of users) {
+      if (u.role !== "admin") rows.set(u.id, { id: u.id, name: u.name, count: 0, booked: 0 });
+    }
+    let totalBookings = 0;
+    for (const bk of bookings) {
+      if (norm(bk.packageTitle || "") !== name || !inPeriod(bk)) continue;
+      totalBookings += 1;
+      const key = bk.userId || "unknown";
+      const row = rows.get(key) || { id: key, name: bk.userName || "Unknown", count: 0, booked: 0 };
+      row.count += 1;
+      row.booked += computeInvoiceTotals(bk).packagePrice;
+      rows.set(key, row);
+    }
+
+    const perUser: OfferUserRow[] = Array.from(rows.values())
+      .map((r) => ({
+        ...r,
+        remaining: Math.max(target - r.booked, 0),
+        pct: target > 0 ? Math.min((r.booked / target) * 100, 100) : 0,
+        met: target > 0 && r.booked >= target,
+      }))
+      .sort((x, y) => y.booked - x.booked || y.count - x.count || x.name.localeCompare(y.name));
+
+    return {
+      offer,
+      target,
+      totalBookings,
+      usersMet: perUser.filter((r) => r.met).length,
+      usersBooked: perUser.filter((r) => r.count > 0).length,
+      perUser,
+    };
+  }, [offers, selectedOfferId, bookings, users, offerRange]);
 
   // Non-admin "My bookings" stats — counts plus the plain package amount
   // each booking was made for (adultPrice*adults + childPrice*children —
@@ -443,6 +545,7 @@ export default function OverviewPage() {
 
         {!isAdmin && (
           <>
+            <MyOfferProgress />
             <div className={styles.cards}>
               <div className={styles.card}>
                 <div className={styles.k}>Your bookings</div>
@@ -603,6 +706,122 @@ export default function OverviewPage() {
                 <div className={styles.v}>{packages.length}</div>
               </div>
             </div>
+
+            <section className={styles.panel}>
+              <div className={styles.panelHead}>
+                <h3>Offer targets</h3>
+                <div className={styles.offerControls}>
+                  {offers.length > 0 && (
+                    <div className={styles.offerRange} role="group" aria-label="Which bookings to count">
+                      <button
+                        type="button"
+                        className={offerRange === "period" ? styles.offerRangeOn : undefined}
+                        aria-pressed={offerRange === "period"}
+                        onClick={() => setOfferRange("period")}
+                      >
+                        Offer dates
+                      </button>
+                      <button
+                        type="button"
+                        className={offerRange === "all" ? styles.offerRangeOn : undefined}
+                        aria-pressed={offerRange === "all"}
+                        onClick={() => setOfferRange("all")}
+                      >
+                        All dates
+                      </button>
+                    </div>
+                  )}
+                  {offers.length > 0 && (
+                    <select
+                      className={styles.offerSelect}
+                      value={selectedOfferId}
+                      onChange={(e) => setSelectedOfferId(e.target.value)}
+                      aria-label="Choose an offer"
+                    >
+                      {offers.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.packageName}
+                          {o.fromDate || o.toDate
+                            ? ` (${formatDateDMY(o.fromDate) || "…"} – ${formatDateDMY(o.toDate) || "…"})`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {/* Reloads offers and bookings together. */}
+                  <RefreshButton onRefresh={() => Promise.all([load(true), loadOffers()])} />
+                </div>
+              </div>
+              {offers.length === 0 ? (
+                <div className={styles.loading}>No offers yet — add package targets in the Offer Section menu.</div>
+              ) : !offerStats ? null : (
+                <>
+                  <div className={styles.offerStats}>
+                    <div>
+                      <span>Target per user</span>
+                      <strong>₹ {offerStats.target.toLocaleString("en-IN")}</strong>
+                    </div>
+                    <div>
+                      <span>Users reached target</span>
+                      <strong className={styles.offerAchieved}>
+                        {offerStats.usersMet} / {offerStats.perUser.length}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Users with bookings</span>
+                      <strong>{offerStats.usersBooked}</strong>
+                    </div>
+                    <div>
+                      <span>Total bookings</span>
+                      <strong>{offerStats.totalBookings}</strong>
+                    </div>
+                  </div>
+                  <div className={styles.offerChartTitle}>
+                    Per user — {offerStats.offer.packageName} ·{" "}
+                    {offerRange === "all"
+                      ? "all bookings, all dates"
+                      : offerPeriodLabel(offerStats.offer.fromDate, offerStats.offer.toDate)}
+                  </div>
+                  {!loaded ? (
+                    <div className={styles.loading}>Loading…</div>
+                  ) : offerStats.perUser.length === 0 ? (
+                    <div className={styles.loading}>No users yet.</div>
+                  ) : (
+                    <div className={styles.offerUsers}>
+                      {offerStats.perUser.map((u) => (
+                        <div key={u.id} className={styles.offerUser}>
+                          <div className={styles.offerUserName} title={u.name}>
+                            {u.name}
+                            <span>
+                              {u.count} booking{u.count === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          <div
+                            className={styles.offerProgress}
+                            role="progressbar"
+                            aria-valuenow={Math.round(u.pct)}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`${u.name}: progress toward target`}
+                          >
+                            <div
+                              className={`${styles.offerProgressFill} ${u.met ? styles.offerProgressMet : ""}`}
+                              style={{ width: `${u.pct}%` }}
+                            />
+                            <span>
+                              ₹ {u.booked.toLocaleString("en-IN")} · {Math.round(u.pct)}%
+                            </span>
+                          </div>
+                          <div className={`${styles.offerUserLeft} ${u.met ? styles.offerUserMet : ""}`}>
+                            {u.met ? "Target met" : `₹ ${u.remaining.toLocaleString("en-IN")} left`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
 
             <section className={styles.panel}>
               <div className={styles.panelHead}>
