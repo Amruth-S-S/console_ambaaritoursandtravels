@@ -145,7 +145,6 @@ export type DmcAccountInput = {
   slNo: string;
   name: string;
   travelDate: string;
-  paymentDate: string;
   paymentFrom: string;
   paymentTo: string;
   paymentMode: string;
@@ -153,6 +152,9 @@ export type DmcAccountInput = {
   numberOfTravelers: string;
   perPersonQuotation: string;
   totalAmount: string;
+  quotationAmount: string;
+  amountPaid: string;
+  balance: string; // quotationAmount - amountPaid, computed (also server-side)
   note: string;
 };
 

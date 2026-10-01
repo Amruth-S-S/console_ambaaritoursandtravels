@@ -47,7 +47,6 @@ const emptyForm: DmcAccountInput = {
   slNo: "",
   name: "",
   travelDate: "",
-  paymentDate: "",
   paymentFrom: "",
   paymentTo: "",
   paymentMode: "Account Transfer",
@@ -55,12 +54,28 @@ const emptyForm: DmcAccountInput = {
   numberOfTravelers: "",
   perPersonQuotation: "",
   totalAmount: "",
+  quotationAmount: "",
+  amountPaid: "",
+  balance: "",
   note: "",
 };
 
 // Amounts are free text and may contain commas ("1,50,000").
 function toNumber(v: string): number {
   return Number((v || "").replace(/[^0-9.]/g, "")) || 0;
+}
+
+// Balance = Quotation Amount - Amount Paid; blank until either is entered.
+function computedBalance(f: DmcAccountInput): string {
+  if (!f.quotationAmount.trim() && !f.amountPaid.trim()) return "";
+  return String(toNumber(f.quotationAmount) - toNumber(f.amountPaid));
+}
+
+// Signed amounts for display — an overpayment shows as a negative balance.
+function formatSigned(v: string): string {
+  if (!v) return "—";
+  const n = Number(v.replace(/[^0-9.-]/g, "")) || 0;
+  return `${n < 0 ? "-" : ""}₹ ${Math.abs(n).toLocaleString("en-IN")}`;
 }
 
 function computedTotal(f: DmcAccountInput): string {
@@ -148,6 +163,11 @@ export default function DmcAccountsPage() {
     );
   }, [entries, search]);
 
+  const balanceTotal = useMemo(
+    () => filtered.reduce((sum, e) => sum + (Number((e.balance || "").replace(/[^0-9.-]/g, "")) || 0), 0),
+    [filtered]
+  );
+
   const grandTotal = useMemo(
     () => filtered.reduce((sum, e) => sum + toNumber(e.totalAmount), 0),
     [filtered]
@@ -198,10 +218,10 @@ export default function DmcAccountsPage() {
     setBusy(true);
     try {
       if (mode === "create") {
-        await api.createDmcAccount(form);
+        await api.createDmcAccount({ ...form, balance: computedBalance(form) });
         notify("ok", "Entry added");
       } else if (editingId) {
-        await api.updateDmcAccount(editingId, form);
+        await api.updateDmcAccount(editingId, { ...form, balance: computedBalance(form) });
         notify("ok", "Entry updated");
       }
       setModalOpen(false);
@@ -263,7 +283,7 @@ export default function DmcAccountsPage() {
     );
   }
 
-  function dateField(id: string, label: string, key: "travelDate" | "paymentDate") {
+  function dateField(id: string, label: string, key: "travelDate") {
     return (
       <div className={styles.field}>
         <label htmlFor={id}>{label}</label>
@@ -283,7 +303,14 @@ export default function DmcAccountsPage() {
               <h3>DMC account entries</h3>
               <span className={styles.count}>{entries.length} total</span>
               {filtered.length > 0 && (
-                <span className={styles.count}>₹ {grandTotal.toLocaleString("en-IN")}</span>
+                <span className={styles.count} title="Sum of Total Amount shown">
+                  ₹ {grandTotal.toLocaleString("en-IN")}
+                </span>
+              )}
+              {filtered.length > 0 && (
+                <span className={styles.count} title="Sum of Balance shown">
+                  Balance {formatSigned(String(balanceTotal))}
+                </span>
               )}
             </div>
             <div className={styles.tableHeadRight}>
@@ -316,7 +343,6 @@ export default function DmcAccountsPage() {
                     <th>Sl No</th>
                     <th>Name</th>
                     <th>Travel Date</th>
-                    <th>Payment Date</th>
                     <th>Payment From</th>
                     <th>Payment To</th>
                     <th>Mode of Payment</th>
@@ -324,6 +350,9 @@ export default function DmcAccountsPage() {
                     <th>No. of Travellers</th>
                     <th>Per Person Quotation</th>
                     <th>Total Amount</th>
+                    <th>Quotation Amount</th>
+                    <th>Amount Paid</th>
+                    <th>Balance</th>
                     <th>Note</th>
                     <th>Approval</th>
                     <th></th>
@@ -335,7 +364,6 @@ export default function DmcAccountsPage() {
                       <td>{e.slNo || "—"}</td>
                       <td>{e.name || "—"}</td>
                       <td>{formatDateDMY(e.travelDate) || "—"}</td>
-                      <td>{formatDateDMY(e.paymentDate) || "—"}</td>
                       <td>{e.paymentFrom || "—"}</td>
                       <td>{e.paymentTo || "—"}</td>
                       <td>{e.paymentMode || "—"}</td>
@@ -343,6 +371,9 @@ export default function DmcAccountsPage() {
                       <td>{e.numberOfTravelers || "—"}</td>
                       <td>{e.perPersonQuotation ? `₹ ${toNumber(e.perPersonQuotation).toLocaleString("en-IN")}` : "—"}</td>
                       <td>{e.totalAmount ? `₹ ${toNumber(e.totalAmount).toLocaleString("en-IN")}` : "—"}</td>
+                      <td>{e.quotationAmount ? `₹ ${toNumber(e.quotationAmount).toLocaleString("en-IN")}` : "—"}</td>
+                      <td>{e.amountPaid ? `₹ ${toNumber(e.amountPaid).toLocaleString("en-IN")}` : "—"}</td>
+                      <td>{formatSigned(e.balance)}</td>
                       <td title={e.note} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {e.note || "—"}
                       </td>
@@ -407,7 +438,6 @@ export default function DmcAccountsPage() {
         </div>
         <div className={styles.row3}>
           {dateField("d-traveldate", "Travel Date", "travelDate")}
-          {dateField("d-paymentdate", "Payment Date", "paymentDate")}
           <div className={styles.field}>
             <label htmlFor="d-paymentmode">Mode of Payment</label>
             <select
@@ -459,6 +489,38 @@ export default function DmcAccountsPage() {
                 setTotalTouched(e.target.value !== "");
                 setForm({ ...form, totalAmount: e.target.value });
               }}
+            />
+          </div>
+        </div>
+        <div className={styles.row3}>
+          <div className={styles.field}>
+            <label htmlFor="d-quotation">Quotation Amount (₹)</label>
+            <input
+              id="d-quotation"
+              inputMode="decimal"
+              value={form.quotationAmount}
+              placeholder="e.g. 100000"
+              onChange={(e) => setForm((f) => ({ ...f, quotationAmount: e.target.value }))}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="d-paid">Amount Paid (₹)</label>
+            <input
+              id="d-paid"
+              inputMode="decimal"
+              value={form.amountPaid}
+              placeholder="e.g. 60000"
+              onChange={(e) => setForm((f) => ({ ...f, amountPaid: e.target.value }))}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="d-balance">Balance (₹)</label>
+            <input
+              id="d-balance"
+              readOnly
+              value={formatSigned(computedBalance(form)) === "—" ? "" : formatSigned(computedBalance(form))}
+              placeholder="Quotation − Paid"
+              title="Calculated automatically: Quotation Amount − Amount Paid"
             />
           </div>
         </div>
