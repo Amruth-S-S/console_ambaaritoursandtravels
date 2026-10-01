@@ -12,6 +12,8 @@ import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
 // Same page shape as the Account/Currency ledgers — reuse their styling.
 import styles from "../accounts/accounts.module.css";
+// Collapsible destination groups reuse the Travel List's look.
+import tl from "../travel-list/travel-list.module.css";
 // Same Files (upload) and View windows as the Account ledger.
 import AttachmentsModal from "../accounts/AttachmentsModal";
 import EntryDetailsModal, { dateTime } from "../accounts/EntryDetailsModal";
@@ -22,6 +24,12 @@ const dmcFileApi = {
   get: api.getDmcAttachment,
   remove: api.deleteDmcAttachment,
 };
+
+const ChevronIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 const ViewIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -196,6 +204,42 @@ export default function DmcAccountsPage() {
     );
   }, [entries, search]);
 
+  // Travel List-style layout: one collapsible row per destination (case and
+  // spacing ignored, first spelling shown), A–Z, with totals in the header.
+  const groups = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; label: string; entries: DmcAccount[]; travellers: number; debit: number; credit: number; balance: number }
+    >();
+    for (const e of filtered) {
+      const label = e.destination.trim().replace(/\s+/g, " ");
+      const key = label.toLowerCase() || "__none__";
+      let g = map.get(key);
+      if (!g) {
+        g = { key, label: label || "No destination", entries: [], travellers: 0, debit: 0, credit: 0, balance: 0 };
+        map.set(key, g);
+      }
+      g.entries.push(e);
+      g.travellers += toNumber(e.numberOfTravelers);
+      g.debit += toNumber(e.debit);
+      g.credit += toNumber(e.credit);
+      g.balance += Number((e.balance || "").replace(/[^0-9.-]/g, "")) || 0;
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.key === "__none__" ? 1 : b.key === "__none__" ? -1 : a.label.localeCompare(b.label)
+    );
+  }, [filtered]);
+
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   const balanceTotal = useMemo(
     () => filtered.reduce((sum, e) => sum + (Number((e.balance || "").replace(/[^0-9.-]/g, "")) || 0), 0),
     [filtered]
@@ -298,6 +342,123 @@ export default function DmcAccountsPage() {
     }
   }
 
+  // One table per destination group (see `groups`).
+  function renderTable(rows: DmcAccount[]) {
+    return (
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Sl No</th>
+              <th>Name</th>
+              <th>Travel Date</th>
+              <th>Payment From</th>
+              <th>Payment To</th>
+              <th>Mode of Payment</th>
+                <th>No. of Travellers</th>
+              <th>Per Person Quotation</th>
+              <th>Total Amount</th>
+              <th>Debit</th>
+              <th>Credit</th>
+              <th>Balance</th>
+              <th>Note</th>
+              <th>Approval</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr key={e.id}>
+                <td>{e.slNo || "—"}</td>
+                <td>{e.name || "—"}</td>
+                <td>{formatDateDMY(e.travelDate) || "—"}</td>
+                <td>{e.paymentFrom || "—"}</td>
+                <td>{e.paymentTo || "—"}</td>
+                <td>{e.paymentMode || "—"}</td>
+                <td>{e.numberOfTravelers || "—"}</td>
+                <td>{e.perPersonQuotation ? `₹ ${toNumber(e.perPersonQuotation).toLocaleString("en-IN")}` : "—"}</td>
+                <td>{e.totalAmount ? `₹ ${toNumber(e.totalAmount).toLocaleString("en-IN")}` : "—"}</td>
+                <td>{e.debit ? `₹ ${toNumber(e.debit).toLocaleString("en-IN")}` : "—"}</td>
+                <td>{e.credit ? `₹ ${toNumber(e.credit).toLocaleString("en-IN")}` : "—"}</td>
+                <td>{formatSigned(e.balance)}</td>
+                <td title={e.note} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {e.note || "—"}
+                </td>
+                <td>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      className={`${styles.approveToggle} ${e.approved ? styles.approveToggleOn : ""}`}
+                      onClick={() => toggleApproval(e)}
+                      disabled={approvalBusyId === e.id}
+                      aria-label={e.approved ? "Mark as not approved" : "Mark as approved"}
+                      title={e.approved ? "Approved — click to revoke" : "Not approved — click to approve"}
+                    >
+                      <span className={styles.approveToggleDot} />
+                    </button>
+                  ) : (
+                    <span
+                      className={`${styles.approveBadge} ${e.approved ? styles.approveBadgeOn : styles.approveBadgeOff}`}
+                    >
+                      {e.approved ? "Approved" : "Pending"}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <div className={styles.actions}>
+                    <button
+                      className={styles.iconBtn}
+                      onClick={() => setViewEntryId(e.id)}
+                      aria-label="View entry details"
+                      title="View details and files"
+                    >
+                      {ViewIcon}
+                    </button>
+                    <button
+                      className={`${styles.iconBtn} ${styles.attachBtn} ${
+                        e.attachments?.length ? styles.attachBtnHas : ""
+                      }`}
+                      onClick={() => {
+                        setFilesFromView(false);
+                        setFilesEntryId(e.id);
+                      }}
+                      aria-label="Upload or view files"
+                      title={
+                        e.attachments?.length
+                          ? `${e.attachments.length} file${e.attachments.length === 1 ? "" : "s"} — click to view or upload`
+                          : "Upload files"
+                      }
+                    >
+                      {AttachIcon}
+                      {e.attachments?.length > 0 && (
+                        <span className={styles.attachCount}>{e.attachments.length}</span>
+                      )}
+                    </button>
+                    {(isAdmin || perms.edit) && (
+                      <button className={styles.iconBtn} onClick={() => openEdit(e)} aria-label="Edit entry" title="Edit">
+                        {EditIcon}
+                      </button>
+                    )}
+                    {(isAdmin || perms.delete) && (
+                      <button
+                        className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                        onClick={() => onDelete(e)}
+                        aria-label="Delete entry"
+                        title="Delete"
+                      >
+                        {DeleteIcon}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   if (user && !allowed) return null;
 
   const canSubmit = form.name.trim() && !busy;
@@ -334,7 +495,10 @@ export default function DmcAccountsPage() {
           <div className={styles.tableHead}>
             <div className={styles.tableHeadLeft}>
               <h3>DMC account entries</h3>
-              <span className={styles.count}>{entries.length} total</span>
+              <span className={styles.count}>
+                {groups.length} destination{groups.length === 1 ? "" : "s"} · {entries.length} entr
+                {entries.length === 1 ? "y" : "ies"}
+              </span>
               {filtered.length > 0 && (
                 <span className={styles.count} title="Sum of Total Amount shown">
                   ₹ {grandTotal.toLocaleString("en-IN")}
@@ -369,118 +533,31 @@ export default function DmcAccountsPage() {
           ) : filtered.length === 0 ? (
             <div className={styles.empty}>{search ? "No entries match your search." : "No entries yet."}</div>
           ) : (
-            <div className={styles.tableScroll}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Sl No</th>
-                    <th>Name</th>
-                    <th>Travel Date</th>
-                    <th>Payment From</th>
-                    <th>Payment To</th>
-                    <th>Mode of Payment</th>
-                    <th>Destination</th>
-                    <th>No. of Travellers</th>
-                    <th>Per Person Quotation</th>
-                    <th>Total Amount</th>
-                    <th>Debit</th>
-                    <th>Credit</th>
-                    <th>Balance</th>
-                    <th>Note</th>
-                    <th>Approval</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((e) => (
-                    <tr key={e.id}>
-                      <td>{e.slNo || "—"}</td>
-                      <td>{e.name || "—"}</td>
-                      <td>{formatDateDMY(e.travelDate) || "—"}</td>
-                      <td>{e.paymentFrom || "—"}</td>
-                      <td>{e.paymentTo || "—"}</td>
-                      <td>{e.paymentMode || "—"}</td>
-                      <td>{e.destination || "—"}</td>
-                      <td>{e.numberOfTravelers || "—"}</td>
-                      <td>{e.perPersonQuotation ? `₹ ${toNumber(e.perPersonQuotation).toLocaleString("en-IN")}` : "—"}</td>
-                      <td>{e.totalAmount ? `₹ ${toNumber(e.totalAmount).toLocaleString("en-IN")}` : "—"}</td>
-                      <td>{e.debit ? `₹ ${toNumber(e.debit).toLocaleString("en-IN")}` : "—"}</td>
-                      <td>{e.credit ? `₹ ${toNumber(e.credit).toLocaleString("en-IN")}` : "—"}</td>
-                      <td>{formatSigned(e.balance)}</td>
-                      <td title={e.note} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {e.note || "—"}
-                      </td>
-                      <td>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className={`${styles.approveToggle} ${e.approved ? styles.approveToggleOn : ""}`}
-                            onClick={() => toggleApproval(e)}
-                            disabled={approvalBusyId === e.id}
-                            aria-label={e.approved ? "Mark as not approved" : "Mark as approved"}
-                            title={e.approved ? "Approved — click to revoke" : "Not approved — click to approve"}
-                          >
-                            <span className={styles.approveToggleDot} />
-                          </button>
-                        ) : (
-                          <span
-                            className={`${styles.approveBadge} ${e.approved ? styles.approveBadgeOn : styles.approveBadgeOff}`}
-                          >
-                            {e.approved ? "Approved" : "Pending"}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <div className={styles.actions}>
-                          <button
-                            className={styles.iconBtn}
-                            onClick={() => setViewEntryId(e.id)}
-                            aria-label="View entry details"
-                            title="View details and files"
-                          >
-                            {ViewIcon}
-                          </button>
-                          <button
-                            className={`${styles.iconBtn} ${styles.attachBtn} ${
-                              e.attachments?.length ? styles.attachBtnHas : ""
-                            }`}
-                            onClick={() => {
-                              setFilesFromView(false);
-                              setFilesEntryId(e.id);
-                            }}
-                            aria-label="Upload or view files"
-                            title={
-                              e.attachments?.length
-                                ? `${e.attachments.length} file${e.attachments.length === 1 ? "" : "s"} — click to view or upload`
-                                : "Upload files"
-                            }
-                          >
-                            {AttachIcon}
-                            {e.attachments?.length > 0 && (
-                              <span className={styles.attachCount}>{e.attachments.length}</span>
-                            )}
-                          </button>
-                          {(isAdmin || perms.edit) && (
-                            <button className={styles.iconBtn} onClick={() => openEdit(e)} aria-label="Edit entry" title="Edit">
-                              {EditIcon}
-                            </button>
-                          )}
-                          {(isAdmin || perms.delete) && (
-                            <button
-                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                              onClick={() => onDelete(e)}
-                              aria-label="Delete entry"
-                              title="Delete"
-                            >
-                              {DeleteIcon}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className={tl.list}>
+              {groups.map((g) => {
+                const open = !!search.trim() || openKeys.has(g.key);
+                return (
+                  <div key={g.key} className={tl.group}>
+                    <button
+                      type="button"
+                      className={tl.groupHead}
+                      onClick={() => toggleGroup(g.key)}
+                      aria-expanded={open}
+                    >
+                      <span className={`${tl.chevron} ${open ? tl.chevronOpen : ""}`}>{ChevronIcon}</span>
+                      <span className={tl.groupPackage}>{g.label}</span>
+                      <span className={tl.groupCount}>
+                        {g.entries.length} entr{g.entries.length === 1 ? "y" : "ies"} · {g.travellers} travellers · Debit ₹{" "}
+                        {g.debit.toLocaleString("en-IN")} · Credit ₹ {g.credit.toLocaleString("en-IN")}
+                      </span>
+                      <span className={tl.groupTotal} title="Balance (Debit − Credit) for this destination">
+                        Bal {formatSigned(String(g.balance))}
+                      </span>
+                    </button>
+                    {open && <div className={tl.groupBody}>{renderTable(g.entries)}</div>}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>

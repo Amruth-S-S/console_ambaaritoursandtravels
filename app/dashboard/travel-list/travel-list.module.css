@@ -205,3 +205,8 @@
     flex-wrap: wrap;
   }
 }
+
+/* Expanded group holding a full-width table (DMC Account). */
+.groupBody {
+  padding: 0 24px 16px;
+}
