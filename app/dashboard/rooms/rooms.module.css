@@ -358,18 +358,63 @@
   border: 1px solid rgba(255, 107, 107, 0.3);
 }
 
-/* Separates the scanned passport fields from travel details on a card. */
-.passportDivider {
-  margin: 14px 0 0;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
 
 .field textarea {
   resize: vertical;
+}
+
+/* Traveller card header: title + Remove */
+.travelerCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.travelerCardHead .travelerCardTitle {
+  margin-bottom: 0;
+}
+
+.removeTravelerBtn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.removeTravelerBtn:hover {
+  color: var(--danger);
+  border-color: rgba(255, 107, 107, 0.4);
+  background: var(--danger-soft);
+}
+
+/* "+ Add more traveller" under the cards */
+.addTravelerBtn {
+  margin-top: 14px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.addTravelerBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.addTravelerBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

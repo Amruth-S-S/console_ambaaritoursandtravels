@@ -174,6 +174,8 @@ export type UpcomingPackageInput = {
   dates: string;
   packageName: string;
   landCost: string;
+  // "domestic" | "international"; "" on entries saved before it existed.
+  packageType: string;
 };
 
 export type UpcomingPackage = UpcomingPackageInput & {

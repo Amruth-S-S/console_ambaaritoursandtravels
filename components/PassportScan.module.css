@@ -65,3 +65,81 @@
 .err {
   color: var(--danger);
 }
+
+/* Uploaded passport pages, kept on screen for re-checking the filled fields. */
+.previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 10px;
+}
+
+.thumb {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 0.12s;
+}
+
+.thumb:hover {
+  border-color: var(--accent);
+}
+
+.thumb img {
+  display: block;
+  height: 180px;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+}
+
+.thumb span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+  text-align: left;
+}
+
+/* Full-screen view; click anywhere or press Esc to close. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 8, 16, 0.85);
+  cursor: zoom-out;
+}
+
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}

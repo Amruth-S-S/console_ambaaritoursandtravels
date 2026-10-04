@@ -32,6 +32,22 @@ export function isUpcoming(month: string): boolean {
   return month >= currentMonth();
 }
 
+export type PackageKind = "international" | "domestic";
+
+// An entry's type, or — for entries saved before the field existed — the
+// type of the package with the same name (case/spacing ignored).
+export function packageKindOf(
+  entry: { packageType?: string; packageName: string },
+  typeByName: Map<string, PackageKind>
+): PackageKind | null {
+  if (entry.packageType === "international" || entry.packageType === "domestic") return entry.packageType;
+  return typeByName.get(normalizeName(entry.packageName)) ?? null;
+}
+
+export function normalizeName(name: string): string {
+  return (name || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export function formatLandCost(v: string): string {
   const n = Number((v || "").replace(/[^0-9.]/g, ""));
   return v && n ? `₹ ${n.toLocaleString("en-IN")}` : "—";

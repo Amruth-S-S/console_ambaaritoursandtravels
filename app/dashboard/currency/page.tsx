@@ -9,8 +9,8 @@ import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import RefreshButton from "@/components/RefreshButton";
 import PassportScan from "@/components/PassportScan";
-import PassportExtraFields from "@/components/PassportExtraFields";
-import { EMPTY_PASSPORT_EXTRAS, PassportDetails, pickExtras } from "@/lib/passport";
+import AutoGrowInput from "@/components/AutoGrowInput";
+import { EMPTY_PASSPORT_EXTRAS, PassportDetails } from "@/lib/passport";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
 // Reusing the Account ledger's styling — same shape of page (search,
@@ -230,8 +230,8 @@ export default function CurrencyLedgerPage() {
     setModalOpen(true);
   }
 
-  // Fills the form from a passport scan. Blank scan values never wipe what's
-  // already typed (e.g. page 2 alone has no name or number on it).
+  // Fills the form from a passport scan — Passport No, Given Name, Surname,
+  // Sex and DOB only. Blank scan values never wipe what's already typed.
   function applyPassport(d: PassportDetails) {
     const fullName = [d.givenName, d.surname].filter(Boolean).join(" ");
     const scanned: Partial<FormState> = {
@@ -240,7 +240,6 @@ export default function CurrencyLedgerPage() {
       givenName: d.givenName,
       sex: d.sex,
       dob: d.dob,
-      ...pickExtras(d),
     };
     setForm((f) => {
       const next = { ...f, name: f.name || fullName };
@@ -617,22 +616,22 @@ export default function CurrencyLedgerPage() {
           </div>
         </div>
 
-        <div className={styles.sectionLabel}>Passport details</div>
+        <div className={styles.sectionLabel}>Passport</div>
         <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="c-givenname">Given Name</label>
-            <input
+            <AutoGrowInput
               id="c-givenname"
               value={form.givenName}
-              onChange={(e) => setForm({ ...form, givenName: e.target.value })}
+              onChange={(v) => setForm((f) => ({ ...f, givenName: v }))}
             />
           </div>
           <div className={styles.field}>
             <label htmlFor="c-surname">Surname</label>
-            <input
+            <AutoGrowInput
               id="c-surname"
               value={form.surname}
-              onChange={(e) => setForm({ ...form, surname: e.target.value })}
+              onChange={(v) => setForm((f) => ({ ...f, surname: v }))}
             />
           </div>
           <div className={styles.field}>
@@ -658,13 +657,6 @@ export default function CurrencyLedgerPage() {
             />
           </div>
         </div>
-        <PassportExtraFields
-          idPrefix="c"
-          values={pickExtras(form)}
-          onChange={(key, value) => setForm((f) => ({ ...f, [key]: value }))}
-          rowClass={styles.row3}
-          fieldClass={styles.field}
-        />
 
         {formErr && <div className={`${styles.msg} ${styles.err}`}>{formErr}</div>}
 

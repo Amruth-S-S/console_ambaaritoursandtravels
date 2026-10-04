@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api, UpcomingPackage, UpcomingPackageInput } from "@/lib/api";
-import { formatLandCost, isUpcoming, monthLabel, splitDates } from "@/lib/upcoming";
+import {
+  formatLandCost,
+  isUpcoming,
+  monthLabel,
+  normalizeName,
+  PackageKind,
+  packageKindOf,
+  splitDates,
+} from "@/lib/upcoming";
 import Navbar from "@/components/Navbar";
 import Modal from "@/components/Modal";
 import RefreshButton from "@/components/RefreshButton";
@@ -36,7 +44,9 @@ const DeleteIcon = (
   </svg>
 );
 
-const emptyForm: UpcomingPackageInput = { month: "", dates: "", packageName: "", landCost: "" };
+const emptyForm: UpcomingPackageInput = { month: "", dates: "", packageName: "", landCost: "", packageType: "" };
+
+const KIND_LABEL: Record<PackageKind, string> = { international: "International", domestic: "Domestic" };
 
 export default function UpcomingPackagesPage() {
   const { user } = useAuth();
@@ -45,6 +55,8 @@ export default function UpcomingPackagesPage() {
 
   const [entries, setEntries] = useState<UpcomingPackage[]>([]);
   const [packageNames, setPackageNames] = useState<string[]>([]);
+  // Package name -> its Domestic/International type, to pre-fill Package Type.
+  const [typeByName, setTypeByName] = useState<Map<string, PackageKind>>(new Map());
   const [search, setSearch] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -81,7 +93,10 @@ export default function UpcomingPackagesPage() {
     // that isn't built yet can be announced too.
     api
       .listPackages()
-      .then((list) => setPackageNames(Array.from(new Set(list.map((p) => p.packageTitle).filter(Boolean))).sort()))
+      .then((list) => {
+        setPackageNames(Array.from(new Set(list.map((p) => p.packageTitle).filter(Boolean))).sort());
+        setTypeByName(new Map(list.map((p) => [normalizeName(p.packageTitle), p.packageType] as [string, PackageKind])));
+      })
       .catch(() => {});
   }
 
@@ -107,7 +122,13 @@ export default function UpcomingPackagesPage() {
 
   function openEdit(e: UpcomingPackage) {
     setEditingId(e.id);
-    setForm({ month: e.month, dates: e.dates, packageName: e.packageName, landCost: e.landCost });
+    setForm({
+      month: e.month,
+      dates: e.dates,
+      packageName: e.packageName,
+      landCost: e.landCost,
+      packageType: packageKindOf(e, typeByName) ?? "",
+    });
     setFormErr("");
     setModalOpen(true);
   }
@@ -158,7 +179,7 @@ export default function UpcomingPackagesPage() {
 
   if (user && !isAdmin) return null;
 
-  const canSubmit = /^\d{4}-\d{2}$/.test(form.month) && form.packageName.trim() && !busy;
+  const canSubmit = /^\d{4}-\d{2}$/.test(form.month) && form.packageName.trim() && form.packageType && !busy;
 
   return (
     <>
@@ -197,6 +218,7 @@ export default function UpcomingPackagesPage() {
                     <th>Month</th>
                     <th>Dates</th>
                     <th>Package Name</th>
+                    <th>Type</th>
                     <th>Land Cost</th>
                     <th>On Dashboard</th>
                     <th></th>
@@ -208,6 +230,10 @@ export default function UpcomingPackagesPage() {
                       <td>{monthLabel(e.month)}</td>
                       <td>{e.dates || "—"}</td>
                       <td>{e.packageName}</td>
+                      <td>{(() => {
+                        const k = packageKindOf(e, typeByName);
+                        return k ? KIND_LABEL[k] : "—";
+                      })()}</td>
                       <td>{formatLandCost(e.landCost)}</td>
                       <td>
                         <span
@@ -261,6 +287,18 @@ export default function UpcomingPackagesPage() {
               onChange={(e) => setForm({ ...form, dates: e.target.value })}
             />
           </div>
+          <div className={styles.field}>
+            <label htmlFor="u-type">Package Type</label>
+            <select
+              id="u-type"
+              value={form.packageType}
+              onChange={(e) => setForm({ ...form, packageType: e.target.value })}
+            >
+              <option value="">Select…</option>
+              <option value="international">International</option>
+              <option value="domestic">Domestic</option>
+            </select>
+          </div>
         </div>
         <div className={styles.row3}>
           <div className={styles.field}>
@@ -270,7 +308,13 @@ export default function UpcomingPackagesPage() {
               list="u-package-names"
               value={form.packageName}
               placeholder="Pick a package or type a name"
-              onChange={(e) => setForm({ ...form, packageName: e.target.value })}
+              onChange={(e) => {
+                const packageName = e.target.value;
+                // Picking a known package fills in its type; typing a new
+                // name leaves whatever type is already chosen.
+                const known = typeByName.get(normalizeName(packageName));
+                setForm({ ...form, packageName, packageType: known ?? form.packageType });
+              }}
             />
             <datalist id="u-package-names">
               {packageNames.map((n) => (

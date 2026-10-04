@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { api, BookingByPackage, Package, RoomEntry, RoomTraveler } from "@/lib/api";
+import { api, Package, RoomEntry, RoomTraveler } from "@/lib/api";
 import {
   downloadCombinedRoomListPdf,
   downloadRoomListPdf,
@@ -13,8 +13,8 @@ import {
 import Navbar from "@/components/Navbar";
 import RefreshButton from "@/components/RefreshButton";
 import PassportScan from "@/components/PassportScan";
-import PassportExtraFields from "@/components/PassportExtraFields";
-import { EMPTY_PASSPORT_EXTRAS, genderFromSex, PassportDetails, pickExtras } from "@/lib/passport";
+import AutoGrowInput from "@/components/AutoGrowInput";
+import { EMPTY_PASSPORT_EXTRAS, genderFromSex, PassportDetails } from "@/lib/passport";
 import Modal from "@/components/Modal";
 import Toast, { ToastState } from "@/components/Toast";
 import dash from "../dashboard.module.css";
@@ -97,12 +97,33 @@ function emptyTraveler(category: RoomTraveler["category"]): RoomTraveler {
   };
 }
 
-function buildTravelers(adults: number, children: number, infants: number): RoomTraveler[] {
-  return [
-    ...Array.from({ length: adults }, () => emptyTraveler("adult")),
-    ...Array.from({ length: children }, () => emptyTraveler("child")),
-    ...Array.from({ length: infants }, () => emptyTraveler("infant")),
-  ];
+// People per room for each room type — fills Share Per Room when the type
+// is picked (still editable, e.g. a Family room for 5).
+const ROOM_OCCUPANCY: Record<string, number> = {
+  Single: 1,
+  Double: 2,
+  Twin: 2,
+  Triple: 3,
+  Quad: 4,
+  Family: 4,
+};
+const MAX_TRAVELERS = 40;
+
+// Traveller cards = No of Rooms x Share Per Room (blank rooms counts as 1).
+function travelerCount(rooms: string, share: string): number {
+  const r = Math.max(1, parseInt(rooms, 10) || 1);
+  const sh = Math.max(1, parseInt(share, 10) || 1);
+  return Math.min(r * sh, MAX_TRAVELERS);
+}
+
+// Grows or shrinks the card list, keeping whatever was already typed.
+function resizeTravelers(list: RoomTraveler[], count: number): RoomTraveler[] {
+  if (list.length >= count) return list.slice(0, count);
+  return [...list, ...Array.from({ length: count - list.length }, () => emptyTraveler("adult"))];
+}
+
+function travelerName(t: RoomTraveler): string {
+  return [t.givenName, t.surname].map((x) => x.trim()).filter(Boolean).join(" ");
 }
 
 type FormState = {
@@ -126,9 +147,9 @@ const emptyForm: FormState = {
   clientName: "",
   invoiceNumber: "",
   roomType: "Double",
-  numberOfRooms: "",
-  sharingPerRoom: "",
-  travelers: [],
+  numberOfRooms: "1",
+  sharingPerRoom: "2",
+  travelers: resizeTravelers([], 2),
 };
 
 export default function RoomsPage() {
@@ -158,12 +179,6 @@ export default function RoomsPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
-
-  // Options for the Client dropdown, scoped to whatever package is
-  // currently selected — see loadClientOptions below.
-  const [clientOptions, setClientOptions] = useState<BookingByPackage[]>([]);
-  const [selectedBookingId, setSelectedBookingId] = useState("");
-  const [clientsLoading, setClientsLoading] = useState(false);
 
   const [docActionBusy, setDocActionBusy] = useState<{ id: string; action: "view" | "download" } | null>(
     null
@@ -310,68 +325,44 @@ export default function RoomsPage() {
     return entry.travelers.filter((t) => t.category === category).length;
   }
 
-  // Loads the clients booked under a package (with their adult/children/
-  // infant counts) so the Client dropdown only ever offers real bookings —
-  // called whenever the Package selection changes.
-  async function loadClientOptions(packageId: string) {
-    setClientsLoading(true);
-    try {
-      setClientOptions(await api.getBookingsByPackage(packageId));
-    } catch {
-      setClientOptions([]);
-    } finally {
-      setClientsLoading(false);
-    }
-  }
-
   function onPackageTypeChange(packageType: "domestic" | "international") {
     const stillValid = packages.find((p) => p.id === form.packageId)?.packageType === packageType;
-    setForm((f) => ({
-      ...f,
-      packageType,
-      ...(stillValid
-        ? {}
-        : { packageId: "", packageTitle: "", clientName: "", travelers: [] }),
-    }));
-    if (!stillValid) {
-      setClientOptions([]);
-      setSelectedBookingId("");
-    }
+    setForm((f) => ({ ...f, packageType, ...(stillValid ? {} : { packageId: "", packageTitle: "" }) }));
   }
 
   function onPackageChange(packageId: string) {
     const pkg = packages.find((p) => p.id === packageId);
-    setForm((f) => ({
-      ...f,
-      packageId,
-      packageTitle: pkg?.packageTitle || "",
-      clientName: "",
-      travelers: [],
-    }));
-    setSelectedBookingId("");
-    setClientOptions([]);
-    if (packageId) loadClientOptions(packageId);
+    setForm((f) => ({ ...f, packageId, packageTitle: pkg?.packageTitle || "" }));
   }
 
-  function onClientChange(bookingId: string) {
-    setSelectedBookingId(bookingId);
-    const match = clientOptions.find((c) => c.bookingId === bookingId);
-    if (!match) {
-      setForm((f) => ({ ...f, clientName: "", invoiceNumber: "", travelers: [] }));
-      return;
-    }
-    setForm((f) => ({
-      ...f,
-      clientName: match.clientName,
-      // Auto-filled from the booking, per the request — still editable
-      // afterward in case this room list needs a different number.
-      invoiceNumber: match.invoiceNumber,
-      travelers: buildTravelers(
-        Number(match.adults) || 0,
-        Number(match.children) || 0,
-        Number(match.infants) || 0
-      ),
-    }));
+  // Room Type / No of Rooms / Share Per Room drive how many traveller cards
+  // there are. Picking a room type also sets Share Per Room to its usual size.
+  function onRoomFieldsChange(patch: Partial<Pick<FormState, "roomType" | "numberOfRooms" | "sharingPerRoom">>) {
+    setForm((f) => {
+      const next = { ...f, ...patch };
+      if (patch.roomType !== undefined) next.sharingPerRoom = String(ROOM_OCCUPANCY[patch.roomType] ?? 2);
+      return { ...next, travelers: resizeTravelers(f.travelers, travelerCount(next.numberOfRooms, next.sharingPerRoom)) };
+    });
+  }
+
+  // "+ Add more traveller" / per-card Remove. No of Rooms follows the card
+  // count (rooms = ceil(travellers / share)) so it stays in step with what's
+  // shown, and a later room-field change doesn't drop added travellers.
+  function setTravelerList(next: RoomTraveler[]) {
+    setForm((f) => {
+      const share = Math.max(1, parseInt(f.sharingPerRoom, 10) || 1);
+      return { ...f, travelers: next, numberOfRooms: String(Math.max(1, Math.ceil(next.length / share))) };
+    });
+  }
+
+  function addTraveler() {
+    if (form.travelers.length >= MAX_TRAVELERS) return;
+    setTravelerList([...form.travelers, emptyTraveler("adult")]);
+  }
+
+  function removeTraveler(index: number) {
+    if (form.travelers.length <= 1) return;
+    setTravelerList(form.travelers.filter((_, i) => i !== index));
   }
 
   function updateTraveler(index: number, field: keyof RoomTraveler, value: string) {
@@ -381,8 +372,9 @@ export default function RoomsPage() {
     }));
   }
 
-  // Fills one traveler card from a passport scan. Blank scan values never
-  // wipe what's already typed (e.g. page 2 alone has no name on it).
+  // Fills one traveler card from a passport scan — Given Name, Surname,
+  // Gender, DOB and Passport No only. Blank scan values never wipe what's
+  // already typed.
   function applyPassport(index: number, d: PassportDetails) {
     const scanned: Partial<RoomTraveler> = {
       givenName: d.givenName,
@@ -390,7 +382,6 @@ export default function RoomsPage() {
       gender: genderFromSex(d.sex),
       passportNo: d.passportNo,
       dob: d.dob,
-      ...pickExtras(d),
     };
     setForm((f) => ({
       ...f,
@@ -407,8 +398,6 @@ export default function RoomsPage() {
     setMode("create");
     setEditingId(null);
     setForm(emptyForm);
-    setClientOptions([]);
-    setSelectedBookingId("");
     setFormErr("");
     setModalOpen(true);
     try {
@@ -419,7 +408,7 @@ export default function RoomsPage() {
     }
   }
 
-  async function openEdit(entry: RoomEntry) {
+  function openEdit(entry: RoomEntry) {
     setMode("edit");
     setEditingId(entry.id);
     setForm({
@@ -436,29 +425,6 @@ export default function RoomsPage() {
     });
     setFormErr("");
     setModalOpen(true);
-    if (entry.packageId) {
-      setClientsLoading(true);
-      try {
-        const options = await api.getBookingsByPackage(entry.packageId);
-        const match = options.find((o) => o.clientName === entry.clientName);
-        // The booking behind this entry may since have been edited/deleted
-        // — fall back to a synthetic option so the dropdown still shows the
-        // client name that's actually saved on this room-list entry.
-        setClientOptions(match ? options : [...options, {
-          bookingId: "__saved__",
-          clientName: entry.clientName,
-          adults: String(countOf(entry, "adult")),
-          children: String(countOf(entry, "child")),
-          infants: String(countOf(entry, "infant")),
-          invoiceNumber: entry.invoiceNumber,
-        }]);
-        setSelectedBookingId(match ? match.bookingId : "__saved__");
-      } catch {
-        setClientOptions([]);
-      } finally {
-        setClientsLoading(false);
-      }
-    }
   }
 
   function closeModal() {
@@ -475,7 +441,9 @@ export default function RoomsPage() {
         packageType: form.packageType,
         packageId: form.packageId,
         packageTitle: form.packageTitle,
-        clientName: form.clientName,
+        // No client picker any more — the list and PDFs still need a name, so
+        // use the first traveller's (keeps the old name when it's blank).
+        clientName: travelerName(form.travelers[0] ?? emptyTraveler("adult")) || form.clientName,
         invoiceNumber: form.invoiceNumber,
         roomType: form.roomType,
         numberOfRooms: form.numberOfRooms,
@@ -519,7 +487,7 @@ export default function RoomsPage() {
 
   if (user && !allowed) return null;
 
-  const canSubmit = form.packageId.trim() && form.clientName.trim() && !busy;
+  const canSubmit = form.packageId.trim() && form.travelers.length > 0 && !busy;
 
   return (
     <>
@@ -742,38 +710,13 @@ export default function RoomsPage() {
           </div>
         </div>
 
-        <div className={styles.field}>
-          <label htmlFor="r-client">Client Name</label>
-          <select
-            id="r-client"
-            value={selectedBookingId}
-            onChange={(e) => onClientChange(e.target.value)}
-            disabled={!form.packageId || clientsLoading}
-          >
-            <option value="">
-              {!form.packageId
-                ? "Select a package first…"
-                : clientsLoading
-                ? "Loading clients…"
-                : clientOptions.length === 0
-                ? "No clients booked under this package"
-                : "Select a client…"}
-            </option>
-            {clientOptions.map((c) => (
-              <option key={c.bookingId} value={c.bookingId}>
-                {c.clientName} ({c.adults} adults, {c.children} children, {c.infants} infants)
-              </option>
-            ))}
-          </select>
-        </div>
-
         <div className={styles.row3}>
           <div className={styles.field}>
             <label htmlFor="r-roomtype">Room Type</label>
             <select
               id="r-roomtype"
               value={form.roomType}
-              onChange={(e) => setForm({ ...form, roomType: e.target.value })}
+              onChange={(e) => onRoomFieldsChange({ roomType: e.target.value })}
             >
               {ROOM_TYPE_OPTIONS.map((o) => (
                 <option key={o} value={o}>
@@ -786,18 +729,20 @@ export default function RoomsPage() {
             <label htmlFor="r-numrooms">No of Rooms</label>
             <input
               id="r-numrooms"
+              inputMode="numeric"
               value={form.numberOfRooms}
               placeholder="e.g. 2"
-              onChange={(e) => setForm({ ...form, numberOfRooms: e.target.value })}
+              onChange={(e) => onRoomFieldsChange({ numberOfRooms: e.target.value })}
             />
           </div>
           <div className={styles.field}>
             <label htmlFor="r-sharing">Share Per Room</label>
             <input
               id="r-sharing"
+              inputMode="numeric"
               value={form.sharingPerRoom}
               placeholder="e.g. 2"
-              onChange={(e) => setForm({ ...form, sharingPerRoom: e.target.value })}
+              onChange={(e) => onRoomFieldsChange({ sharingPerRoom: e.target.value })}
             />
           </div>
           <div className={styles.field}>
@@ -805,7 +750,7 @@ export default function RoomsPage() {
             <input
               id="r-invoice"
               value={form.invoiceNumber}
-              placeholder="Auto-filled from the client's booking"
+              placeholder="e.g. 0067"
               onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })}
             />
           </div>
@@ -813,37 +758,49 @@ export default function RoomsPage() {
 
         {form.travelers.length > 0 && (
           <div className={styles.travelerGroups}>
-            {(["adult", "child", "infant"] as const).map((category) => {
-              const inCategory = form.travelers
-                .map((t, i) => ({ t, i }))
-                .filter(({ t }) => t.category === category);
-              if (inCategory.length === 0) return null;
+            {(() => {
+              // Cards in room order: Room 1 holds travellers 1..share, etc.
+              const share = Math.max(1, parseInt(form.sharingPerRoom, 10) || 1);
+              const rooms: { t: RoomTraveler; i: number }[][] = [];
+              form.travelers.forEach((t, i) => {
+                const r = Math.floor(i / share);
+                (rooms[r] ||= []).push({ t, i });
+              });
+              return rooms;
+            })().map((room, r) => {
               return (
-                <div key={category} className={styles.travelerSection}>
+                <div key={r} className={styles.travelerSection}>
                   <div className={styles.travelerSectionTitle}>
-                    {CATEGORY_LABELS[category]} ({inCategory.length})
+                    Room {r + 1} · {form.roomType} ({room.length})
                   </div>
-                  {inCategory.map(({ t, i }, n) => {
+                  {room.map(({ t, i }, n) => {
                     return (
                       <div key={i} className={styles.travelerCard}>
-                        <div className={styles.travelerCardTitle}>
-                          {CATEGORY_LABELS[category].replace(/s$/, "")} {n + 1}
+                        <div className={styles.travelerCardHead}>
+                          <div className={styles.travelerCardTitle}>
+                            Traveller {n + 1}
+                            {travelerName(t) ? ` — ${travelerName(t)}` : ""}
+                          </div>
+                          {form.travelers.length > 1 && (
+                            <button
+                              type="button"
+                              className={styles.removeTravelerBtn}
+                              onClick={() => removeTraveler(i)}
+                              aria-label={`Remove traveller ${n + 1} from room ${r + 1}`}
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                         <PassportScan onScanned={(d) => applyPassport(i, d)} />
                         <div className={styles.row3}>
                           <div className={styles.field}>
                             <label>Given Name</label>
-                            <input
-                              value={t.givenName}
-                              onChange={(e) => updateTraveler(i, "givenName", e.target.value)}
-                            />
+                            <AutoGrowInput value={t.givenName} onChange={(v) => updateTraveler(i, "givenName", v)} />
                           </div>
                           <div className={styles.field}>
                             <label>Surname</label>
-                            <input
-                              value={t.surname}
-                              onChange={(e) => updateTraveler(i, "surname", e.target.value)}
-                            />
+                            <AutoGrowInput value={t.surname} onChange={(v) => updateTraveler(i, "surname", v)} />
                           </div>
                           <div className={styles.field}>
                             <label>Gender</label>
@@ -892,15 +849,20 @@ export default function RoomsPage() {
                               onChange={(e) => updateTraveler(i, "departureAirport", e.target.value)}
                             />
                           </div>
+                          <div className={styles.field}>
+                            <label>Category</label>
+                            <select
+                              value={t.category}
+                              onChange={(e) => updateTraveler(i, "category", e.target.value)}
+                            >
+                              {(["adult", "child", "infant"] as const).map((c) => (
+                                <option key={c} value={c}>
+                                  {{ adult: "Adult", child: "Child", infant: "Infant" }[c]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
-                        <div className={styles.passportDivider}>Passport details</div>
-                        <PassportExtraFields
-                          idPrefix={`t${i}`}
-                          values={{ ...EMPTY_PASSPORT_EXTRAS, ...pickExtras(t) }}
-                          onChange={(key, value) => updateTraveler(i, key, value)}
-                          rowClass={styles.row3}
-                          fieldClass={styles.field}
-                        />
                       </div>
                     );
                   })}
@@ -909,6 +871,15 @@ export default function RoomsPage() {
             })}
           </div>
         )}
+
+        <button
+          type="button"
+          className={styles.addTravelerBtn}
+          onClick={addTraveler}
+          disabled={form.travelers.length >= MAX_TRAVELERS}
+        >
+          + Add more traveller
+        </button>
 
         {formErr && <div className={`${styles.msg} ${styles.err}`}>{formErr}</div>}
 

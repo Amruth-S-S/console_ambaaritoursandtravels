@@ -1,23 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, UpcomingPackage } from "@/lib/api";
-import { formatLandCost, isUpcoming, monthLabel, splitDates } from "@/lib/upcoming";
+import {
+  formatLandCost,
+  isUpcoming,
+  monthLabel,
+  normalizeName,
+  PackageKind,
+  packageKindOf,
+  splitDates,
+} from "@/lib/upcoming";
 import styles from "./UpcomingPackagesStrip.module.css";
 
+const ROWS: { key: PackageKind | "other"; label: string }[] = [
+  { key: "international", label: "International" },
+  { key: "domestic", label: "Domestic" },
+  // Only appears for entries whose type can't be worked out (saved before
+  // Package Type existed, with a name that matches no package).
+  { key: "other", label: "Other" },
+];
+
 // Top-of-Overview strip of admin-announced upcoming departures (managed on
-// the admin-only Upcoming Packages page). Cards breathe in and out in a
-// staggered wave to draw the eye; hovering one zooms it further on its
-// own. Renders nothing when there's nothing upcoming.
+// the admin-only Upcoming Packages page), split into International and
+// Domestic rows. Cards breathe in and out in a staggered wave to draw the
+// eye; hovering one zooms it further on its own. Renders nothing when
+// there's nothing upcoming.
 export default function UpcomingPackagesStrip() {
   const [items, setItems] = useState<UpcomingPackage[]>([]);
+  const [typeByName, setTypeByName] = useState<Map<string, PackageKind>>(new Map());
 
   useEffect(() => {
     api
       .listUpcomingPackages()
       .then((list) => setItems(list.filter((p) => isUpcoming(p.month))))
       .catch(() => {});
+    // Only needed to type entries saved before Package Type existed.
+    api
+      .listPackages()
+      .then((list) => setTypeByName(new Map(list.map((p) => [normalizeName(p.packageTitle), p.packageType] as [string, PackageKind]))))
+      .catch(() => {});
   }, []);
+
+  const byRow = useMemo(() => {
+    const rows: Record<string, UpcomingPackage[]> = { international: [], domestic: [], other: [] };
+    for (const p of items) rows[packageKindOf(p, typeByName) ?? "other"].push(p);
+    return rows;
+  }, [items, typeByName]);
 
   if (items.length === 0) return null;
 
@@ -32,41 +61,49 @@ export default function UpcomingPackagesStrip() {
           {items.length} departure{items.length === 1 ? "" : "s"}
         </span>
       </div>
-      <div className={styles.row}>
-        {items.map((p, i) => {
-          const [mon, year] = monthLabel(p.month, true).split(" ");
-          const dates = splitDates(p.dates);
-          return (
-            <article
-              key={p.id}
-              className={styles.card}
-              // Staggered so the cards zoom one after another, not in unison.
-              style={{ animationDelay: `${(i % 6) * 0.45}s` }}
-            >
-              <div className={styles.month}>
-                <span className={styles.mon}>{mon}</span>
-                <span className={styles.year}>{year}</span>
-              </div>
-              <div className={styles.body}>
-                <h3 title={p.packageName}>{p.packageName}</h3>
-                {dates.length > 0 && (
-                  <div className={styles.dates}>
-                    {dates.map((d) => (
-                      <span key={d} className={styles.date}>
-                        {d}
-                      </span>
-                    ))}
+      {ROWS.filter((r) => byRow[r.key].length > 0).map((r) => (
+        <div key={r.key} className={styles.group}>
+          <div className={styles.groupHead}>
+            <h3>{r.label}</h3>
+            <span className={styles.groupCount}>{byRow[r.key].length}</span>
+          </div>
+          <div className={styles.row}>
+            {byRow[r.key].map((p, i) => {
+              const [mon, year] = monthLabel(p.month, true).split(" ");
+              const dates = splitDates(p.dates);
+              return (
+                <article
+                  key={p.id}
+                  className={styles.card}
+                  // Staggered so the cards zoom one after another, not in unison.
+                  style={{ animationDelay: `${(i % 6) * 0.45}s` }}
+                >
+                  <div className={styles.month}>
+                    <span className={styles.mon}>{mon}</span>
+                    <span className={styles.year}>{year}</span>
                   </div>
-                )}
-                <div className={styles.cost}>
-                  <span>Land cost</span>
-                  <strong>{formatLandCost(p.landCost)}</strong>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+                  <div className={styles.body}>
+                    <h3 title={p.packageName}>{p.packageName}</h3>
+                    {dates.length > 0 && (
+                      <div className={styles.dates}>
+                        {dates.map((d) => (
+                          <span key={d} className={styles.date}>
+                            {d}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className={styles.cost}>
+                      <span>Land cost</span>
+                      <strong>{formatLandCost(p.landCost)}</strong>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }

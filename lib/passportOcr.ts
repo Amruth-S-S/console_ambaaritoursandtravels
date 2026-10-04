@@ -60,6 +60,7 @@ function fit44(s: string): string {
 function cleanMrzLine(line: string): string {
   return line
     .toUpperCase()
+    .replace(/€/g, "C") // OCR reads the MRZ font's "C" as "€"
     .replace(/[«‹]/g, "<<")
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9<]/g, "");
@@ -75,6 +76,36 @@ function findMrzLines(text: string): [string, string] | null {
   return null;
 }
 
+// Names straight from MRZ line 1 ("P<INDPATIL<<VIJAYKUMAR<SHIVA…<<<<").
+// The "<" filler after the names often comes out of OCR as junk like
+// "<L<LL<KLK", and the MRZ library's autocorrect can shift those letters
+// into a name ("KSHIVASHARANAPPA") — so split on "<" ourselves and stop at
+// the first piece that can't be a name: empty (a "<<" run), 1-2 letters,
+// or made only of K/L/C.
+function mrzNames(rawLine: string): { surname: string; givenName: string } | null {
+  const line = rawLine
+    .replace(/[a-z]/g, "") // the MRZ font has no lowercase — stray OCR marks
+    .replace(/€/g, "C")
+    .replace(/[«‹]/g, "<<")
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9<]/g, "");
+  const m = /^P[<A-Z][A-Z<]{3}(.*)$/.exec(line);
+  if (!m) return null;
+  const rest = m[1];
+  const split = rest.indexOf("<<");
+  if (split === -1) return null;
+  const isName = (t: string) => t.length >= 3 && !/^[KLC]+$/.test(t) && !/\d/.test(t);
+  const take = (part: string) => {
+    const out: string[] = [];
+    for (const t of part.split("<")) {
+      if (!isName(t)) break;
+      out.push(t);
+    }
+    return out.join(" ");
+  };
+  return { surname: take(rest.slice(0, split)), givenName: take(rest.slice(split + 2)) };
+}
+
 function mrzDate(yymmdd: string | null | undefined, kind: "birth" | "expiry"): string {
   if (!yymmdd || !/^\d{6}$/.test(yymmdd)) return "";
   const yy = Number(yymmdd.slice(0, 2));
@@ -87,21 +118,30 @@ function mrzDate(yymmdd: string | null | undefined, kind: "birth" | "expiry"): s
 const NATIONALITY: Record<string, string> = { IND: "INDIAN" };
 
 function fromMrz(text: string): Partial<PassportDetails> {
+  // Names only need line 1, so they're read even when line 2 is unreadable.
+  const nameLine = text
+    .split(/\r?\n/)
+    .find((l) => {
+      const c = cleanMrzLine(l);
+      return c.length >= 30 && /^P[<A-Z][A-Z<]{3}/.test(c) && c.includes("<<");
+    });
+  const names = nameLine ? mrzNames(nameLine) : null;
+  const nameFields = { surname: names?.surname || "", givenName: names?.givenName || "" };
+
   const lines = findMrzLines(text);
-  if (!lines) return {};
+  if (!lines) return nameFields;
   let result;
   try {
     result = parseMrz(lines, { autocorrect: true });
   } catch {
-    return {};
+    return nameFields;
   }
   const f = result.fields;
   // Only trust fields whose own check digit passed (names have none).
   const ok = (name: string) => result.details.every((d) => d.field !== name || d.valid);
   const sex = f.sex === "male" ? "M" : f.sex === "female" ? "F" : f.sex ? "X" : "";
   return {
-    surname: f.lastName || "",
-    givenName: f.firstName || "",
+    ...nameFields,
     passportNo: ok("documentNumberCheckDigit") ? f.documentNumber || "" : "",
     dob: ok("birthDateCheckDigit") ? mrzDate(f.birthDate, "birth") : "",
     dateOfExpiry: ok("expirationDateCheckDigit") ? mrzDate(f.expirationDate, "expiry") : "",
@@ -140,9 +180,26 @@ function dmyToIso(dmy: string): string {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
 }
 
+function lettersOnly(v: string): string {
+  return v.replace(/[^A-Z ]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// MRZ name when it was read; otherwise the printed name line, keeping only
+// whole capitalised words (OCR surrounds it with stray marks like "Fy oF").
+function pickName(printed: string | undefined, mrz: string | undefined): string {
+  const m = (mrz || "").trim();
+  if (m) return m;
+  return (printed || "")
+    .split(" ")
+    .filter((w) => w.length >= 3)
+    .join(" ");
+}
+
 function fromLabels(text: string): Partial<PassportDetails> {
   const lines = text.split(/\r?\n/);
   const out: Partial<PassportDetails> = {
+    surname: lettersOnly(afterLabel(lines, /\bsurname\b/i)),
+    givenName: lettersOnly(afterLabel(lines, /given name/i)),
     placeOfBirth: afterLabel(lines, /place of birth/i),
     placeOfIssue: afterLabel(lines, /place of issue/i),
     fatherName: afterLabel(lines, /father|legal guardian/i),
@@ -167,7 +224,20 @@ function fromLabels(text: string): Partial<PassportDetails> {
 
 // ---------------------------------------------------------------------------
 
-export async function readPassport(file: File, onProgress?: (text: string) => void): Promise<Partial<PassportDetails>> {
+export type PassportReadResult = {
+  details: Partial<PassportDetails>;
+  // What was read — the photo itself, or each rendered PDF page — so the
+  // form can show it next to the filled fields for re-checking.
+  pages: Blob[];
+};
+
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not render the page"))), "image/jpeg", 0.85)
+  );
+}
+
+export async function readPassport(file: File, onProgress?: (text: string) => void): Promise<PassportReadResult> {
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
   if (!isPdf && !file.type.startsWith("image/")) {
     throw new Error(`${file.name}: upload the passport as a PDF or an image`);
@@ -180,5 +250,8 @@ export async function readPassport(file: File, onProgress?: (text: string) => vo
   const mrz = fromMrz(text);
   const merged: Partial<PassportDetails> = { ...labels };
   for (const [k, v] of Object.entries(mrz)) if (v) (merged as Record<string, string>)[k] = v;
-  return merged;
+  merged.surname = pickName(labels.surname, mrz.surname);
+  merged.givenName = pickName(labels.givenName, mrz.givenName);
+  const pages = isPdf ? await Promise.all((images as HTMLCanvasElement[]).map(canvasToBlob)) : [file];
+  return { details: merged, pages };
 }
