@@ -33,6 +33,24 @@ async function pdfToImages(file: File): Promise<HTMLCanvasElement[]> {
   return pages;
 }
 
+// Phone photos are often small or soft — enlarge (up to 2.5x, so the long
+// side is ~2400px) and convert to grey with a little extra contrast before
+// OCR. Noticeably better at telling "<" from C/L in the MRZ lines.
+async function preparePhoto(file: File): Promise<HTMLCanvasElement> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(2.5, Math.max(1, 2400 / Math.max(bitmap.width, bitmap.height)));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not process the photo");
+  ctx.filter = "grayscale(1) contrast(1.35)";
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas;
+}
+
 async function ocr(images: (HTMLCanvasElement | File)[], onProgress?: (text: string) => void): Promise<string> {
   const { createWorker } = await import("tesseract.js");
   onProgress?.("Loading text reader…");
@@ -69,8 +87,10 @@ function cleanMrzLine(line: string): string {
 function findMrzLines(text: string): [string, string] | null {
   const lines = text.split(/\r?\n/).map(cleanMrzLine).filter((l) => l.length >= 30);
   for (let i = 0; i < lines.length - 1; i++) {
-    if (/^P[<A-Z][A-Z<]{3}/.test(lines[i]) && lines[i].includes("<<") && /^[A-Z0-9<]{9}\d/.test(lines[i + 1])) {
-      return [fit44(lines[i]), fit44(lines[i + 1])];
+    // Line 1 may have a stray mark before "P<"; drop it so the parser sees 44 clean chars.
+    const start = lines[i].search(/P[<A-Z][A-Z<]{3}/);
+    if (start >= 0 && start <= 3 && lines[i].includes("<") && /^[A-Z0-9<]{9}\d/.test(lines[i + 1])) {
+      return [fit44(lines[i].slice(start)), fit44(lines[i + 1])];
     }
   }
   return null;
@@ -89,23 +109,47 @@ function mrzNames(rawLine: string): { surname: string; givenName: string } | nul
     .replace(/[«‹]/g, "<<")
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9<]/g, "");
-  const m = /^P[<A-Z][A-Z<]{3}(.*)$/.exec(line);
+  // OCR sometimes puts a stray mark before "P<IND", so look near the start.
+  const m = /^.{0,3}?P[<A-Z][A-Z<]{3}(.*)$/.exec(line);
   if (!m) return null;
-  const rest = m[1];
-  const split = rest.indexOf("<<");
-  if (split === -1) return null;
-  const isName = (t: string) => t.length >= 3 && !/^[KLC]+$/.test(t) && !/\d/.test(t);
+  // Surname / given-name break is "<<", but OCR often reads it as "<S<",
+  // "<C<" etc. (one stray letter between the two "<"), or keeps only one
+  // "<" ("NAGARAJUS<RAGHAVENDRA") — the stray letter is then trimmed off
+  // the surname by reconcileWord against the printed surname.
+  const sep = /<[A-Z]?</.exec(m[1]) ?? /</.exec(m[1]);
+  if (!sep) return null;
   const take = (part: string) => {
     const out: string[] = [];
-    for (const t of part.split("<")) {
-      if (!isName(t)) break;
+    for (const raw of part.split("<")) {
+      const t = stripFiller(raw);
+      if (t.length < 2 || /\d/.test(t)) break; // first non-name piece = start of the filler
       out.push(t);
+      if (t.length < raw.length) break; // filler began inside this piece
     }
     return out.join(" ");
   };
-  return { surname: take(rest.slice(0, split)), givenName: take(rest.slice(split + 2)) };
+  return { surname: take(m[1].slice(0, sep.index)), givenName: take(m[1].slice(sep.index + sep[0].length)) };
 }
 
+// The "<<<<" padding after a name often comes out of OCR as letters —
+// "RAGHAVENDRALLLLLLLLLC", "…ASLCCLLLL". Cut the trailing run that is made
+// (almost) entirely of those look-alikes (C, L, K, S, R, <), if it's at
+// least 3 long. Over-trimming (e.g. a real final S) is put right afterwards
+// against the printed name — see reconcileName.
+function stripFiller(token: string): string {
+  const look = "CLKSR<";
+  // Earliest point where everything after is (≥85%) look-alikes, at least
+  // 3 long, with at least two of the most common ones (C/L/K/<).
+  for (let i = 0; i <= token.length - 3; i++) {
+    const tail = token.slice(i);
+    if (!look.includes(tail[0])) continue;
+    const chars = Array.from(tail);
+    const bad = chars.filter((ch) => !look.includes(ch)).length;
+    const core = chars.filter((ch) => "CLK<".includes(ch)).length;
+    if (bad <= Math.floor(tail.length * 0.15) && core >= 2) return token.slice(0, i);
+  }
+  return token;
+}
 function mrzDate(yymmdd: string | null | undefined, kind: "birth" | "expiry"): string {
   if (!yymmdd || !/^\d{6}$/.test(yymmdd)) return "";
   const yy = Number(yymmdd.slice(0, 2));
@@ -117,13 +161,64 @@ function mrzDate(yymmdd: string | null | undefined, kind: "birth" | "expiry"): s
 
 const NATIONALITY: Record<string, string> = { IND: "INDIAN" };
 
+// ICAO 9303 check digit: weights 7,3,1 repeating; 0-9 as-is, A-Z = 10-35,
+// "<" = 0.
+function checkDigit(s: string): number {
+  const w = [7, 3, 1];
+  let sum = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    const v = c === "<" ? 0 : /\d/.test(c) ? Number(c) : c.charCodeAt(0) - 55;
+    sum += v * w[i % 3];
+  }
+  return sum % 10;
+}
+
+// DOB / sex / expiry straight from MRZ line 2's middle —
+// "IND" + yymmdd + check + M/F + yymmdd + check — each verified by its own
+// check digit. Works even when the passport number at the start of the
+// line was misread and the full-line parse gave up on it.
+function fromMrzLine2(text: string): Partial<PassportDetails> {
+  for (const raw of text.split(/\r?\n/)) {
+    const line = cleanMrzLine(raw);
+    const m = /([A-Z<]{3})(\d{6})(\d)([MF<X])(\d{6})(\d)/.exec(line);
+    if (!m) continue;
+    const [, nat, dob, dobCheck, sex, exp, expCheck] = m;
+    const out: Partial<PassportDetails> = {};
+    if (checkDigit(dob) === Number(dobCheck)) {
+      out.dob = mrzDate(dob, "birth");
+      out.sex = sex === "<" ? "" : sex;
+    }
+    if (checkDigit(exp) === Number(expCheck)) out.dateOfExpiry = mrzDate(exp, "expiry");
+    if (/^[A-Z]{3}$/.test(nat)) out.nationality = NATIONALITY[nat] || nat;
+    // Passport number = the 9 characters + check digit just before "IND".
+    const before = line.slice(0, m.index);
+    const doc = /([A-Z0-9<]{9})(\d)$/.exec(before);
+    if (doc && checkDigit(doc[1]) === Number(doc[2])) out.passportNo = doc[1].replace(/<+$/, "");
+    if (out.dob || out.passportNo) return out;
+  }
+  return {};
+}
+
+// Last resort for DOB: the earliest dd/mm/yyyy printed on the page — date
+// of birth is always older than the issue and expiry dates beside it.
+function printedDob(text: string): string {
+  const thisYear = new Date().getFullYear();
+  const dates = (text.match(/\b(\d{2})[/.\-](\d{2})[/.\-](\d{4})\b/g) || [])
+    .map(dmyToIso)
+    .filter((d) => d && Number(d.slice(0, 4)) > 1900 && Number(d.slice(0, 4)) < thisYear)
+    .sort();
+  return dates[0] || "";
+}
+
 function fromMrz(text: string): Partial<PassportDetails> {
   // Names only need line 1, so they're read even when line 2 is unreadable.
   const nameLine = text
     .split(/\r?\n/)
     .find((l) => {
       const c = cleanMrzLine(l);
-      return c.length >= 30 && /^P[<A-Z][A-Z<]{3}/.test(c) && c.includes("<<");
+      const start = c.search(/P[<A-Z][A-Z<]{3}/);
+      return c.length >= 30 && start >= 0 && start <= 3 && !/\d{5}/.test(c);
     });
   const names = nameLine ? mrzNames(nameLine) : null;
   const nameFields = { surname: names?.surname || "", givenName: names?.givenName || "" };
@@ -186,15 +281,80 @@ function lettersOnly(v: string): string {
 
 // MRZ name when it was read; otherwise the printed name line, keeping only
 // whole capitalised words (OCR surrounds it with stray marks like "Fy oF").
-function pickName(printed: string | undefined, mrz: string | undefined): string {
+function pickName(printed: string | undefined, mrz: string | undefined, printedWords: string[] = []): string {
   const m = (mrz || "").trim();
-  if (m) return m;
+  if (m) return m.split(" ").map((w) => reconcileWord(w, printedWords)).join(" ");
   return (printed || "")
     .split(" ")
     .filter((w) => w.length >= 3)
     .join(" ");
 }
 
+// Levenshtein distance, small strings only.
+function editDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+// An MRZ name word, corrected against the words printed on the page: a
+// garbled or over-trimmed MRZ word ("NARAJU", "THOMA") takes the closest
+// printed word ("NAGARAJU", "THOMAS") when they're nearly the same.
+function reconcileWord(word: string, printedWords: string[]): string {
+  if (word.length < 3 || printedWords.includes(word)) return word;
+  // A printed word that is the start of the MRZ word: if what's left over is
+  // only filler look-alikes ("NAGARAJU" + "S"), the printed word is right;
+  // otherwise the printed line got clipped ("SHIVASHARANAPP" vs "…PPA") and
+  // the MRZ word is the complete one.
+  const prefix = printedWords
+    .filter((p) => p.length >= 3 && word.startsWith(p))
+    .sort((x, y) => y.length - x.length)[0];
+  if (prefix) return /^[CLKSR<]+$/.test(word.slice(prefix.length)) ? prefix : word;
+  let best = word;
+  let bestDist = Infinity;
+  for (const p of printedWords) {
+    if (Math.abs(p.length - word.length) > 3) continue;
+    const d = editDistance(word, p);
+    const limit = word.length >= 8 ? 3 : 2;
+    if (d <= limit && d < bestDist && p.startsWith(word.slice(0, 1))) {
+      best = p;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+// Whole capitalised words printed on the page (no MRZ lines), for reconcileWord.
+function printedNameWords(text: string): string[] {
+  return Array.from(
+    new Set(
+      text
+        .split(/\r?\n/)
+        .filter((l) => !/[<«]{2}|\d{6}/.test(l))
+        .flatMap((l) => {
+          const words = l.match(/\b[A-Z]{2,}\b/g) || [];
+          // OCR sometimes splits a printed name ("NAGARA JU") — offer each
+          // neighbouring pair joined up too.
+          const joined = words.slice(1).map((w, i) => words[i] + w);
+          return [...words, ...joined].filter((w) => w.length >= 3);
+        })
+    )
+  );
+}
+
+// Passport number from the printed page — one letter + 7 digits on Indian
+// passports — used when the MRZ number fails its check digit.
+function printedPassportNo(text: string): string {
+  const printed = text
+    .split(/\r?\n/)
+    .filter((l) => !/[<«]{2}/.test(l))
+    .join(" ");
+  const m = /\b([A-Z])\s?(\d{7})\b/.exec(printed);
+  return m ? m[1] + m[2] : "";
+}
 function fromLabels(text: string): Partial<PassportDetails> {
   const lines = text.split(/\r?\n/);
   const out: Partial<PassportDetails> = {
@@ -243,15 +403,23 @@ export async function readPassport(file: File, onProgress?: (text: string) => vo
     throw new Error(`${file.name}: upload the passport as a PDF or an image`);
   }
   if (isPdf) onProgress?.("Opening PDF…");
-  const images = isPdf ? await pdfToImages(file) : [file];
+  const images = isPdf ? await pdfToImages(file) : [await preparePhoto(file)];
   const text = await ocr(images, onProgress);
   // MRZ values win over label guesses (they're check-digit verified).
   const labels = fromLabels(text);
   const mrz = fromMrz(text);
   const merged: Partial<PassportDetails> = { ...labels };
   for (const [k, v] of Object.entries(mrz)) if (v) (merged as Record<string, string>)[k] = v;
-  merged.surname = pickName(labels.surname, mrz.surname);
-  merged.givenName = pickName(labels.givenName, mrz.givenName);
+  const words = printedNameWords(text);
+  merged.surname = pickName(labels.surname, mrz.surname, words);
+  merged.givenName = pickName(labels.givenName, mrz.givenName, words);
+  // Fallbacks when the full MRZ parse couldn't verify a field.
+  const line2 = fromMrzLine2(text);
+  for (const k of ["passportNo", "dob", "sex", "dateOfExpiry", "nationality"] as const) {
+    if (!merged[k] && line2[k]) merged[k] = line2[k];
+  }
+  if (!merged.passportNo) merged.passportNo = printedPassportNo(text);
+  if (!merged.dob) merged.dob = printedDob(text);
   const pages = isPdf ? await Promise.all((images as HTMLCanvasElement[]).map(canvasToBlob)) : [file];
   return { details: merged, pages };
 }
