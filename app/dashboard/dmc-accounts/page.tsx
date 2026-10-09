@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { canUseMenu } from "@/lib/menus";
 import { api, DmcAccount, DmcAccountInput } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
@@ -125,7 +126,7 @@ export default function DmcAccountsPage() {
   // Same role check as Sidebar's menu gate — the backend is the real
   // enforcement (routes/dmc_accounts.py).
   const isDmcRole = (user?.roleNames || []).some((rn) => rn.trim().toLowerCase() === "dmc account");
-  const allowed = isAdmin || isDmcRole;
+  const allowed = isAdmin || isDmcRole || canUseMenu(user, "dmc-accounts");
 
   const [entries, setEntries] = useState<DmcAccount[]>([]);
   const [search, setSearch] = useState("");

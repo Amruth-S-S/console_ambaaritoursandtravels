@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { canUseMenu } from "@/lib/menus";
 import { AMBAARI_LOGO_BASE64 } from "@/lib/ambaariLogo";
 import styles from "./Sidebar.module.css";
 
@@ -16,6 +17,8 @@ type Item = {
   // Roles page) case-insensitively matches one of these — e.g. the Account
   // menu, visible to admin AND anyone assigned the "Account" role.
   roleNames?: string[];
+  // Grantable on the Access page (lib/menus.ts) — visible when granted.
+  menuKey?: string;
 };
 
 const HomeIcon = (
@@ -101,6 +104,13 @@ const OfferIcon = (
   </svg>
 );
 
+const VoucherIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z" strokeLinejoin="round" />
+    <path d="M9 9h6M9 13h4" strokeLinecap="round" />
+  </svg>
+);
+
 const DmcIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 10.5 12 5l9 5.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -134,21 +144,22 @@ const items: Item[] = [
   { label: "Packages", href: "/dashboard/packages", icon: PackagesIcon },
   { label: "Bookings", href: "/dashboard/bookings", icon: BookingsIcon },
   // Admin manages the list; every user sees it on the Overview dashboard.
-  { label: "Upcoming Packages", href: "/dashboard/upcoming-packages", icon: UpcomingIcon, adminOnly: true },
-  { label: "Offer Section", href: "/dashboard/offers", icon: OfferIcon, adminOnly: true },
+  { label: "Upcoming Packages", href: "/dashboard/upcoming-packages", icon: UpcomingIcon, menuKey: "upcoming-packages" },
+  { label: "Offer Section", href: "/dashboard/offers", icon: OfferIcon, menuKey: "offers" },
   // No adminOnly/roleNames — common to every logged-in account (admin,
   // plain user, Team Lead, Account/Currency/Room List role), per the request.
   { label: "Travel List", href: "/dashboard/travel-list", icon: TravelListIcon },
   // Gated like Account/Currency — visible to admin + anyone assigned the
   // "Room List" role, per the follow-up request once Access grants needed
   // something real to restrict here.
-  { label: "Room List", href: "/dashboard/rooms", icon: RoomIcon, roleNames: ["room list"] },
+  { label: "Room List", href: "/dashboard/rooms", icon: RoomIcon, roleNames: ["room list"], menuKey: "rooms" },
   { label: "Users", href: "/dashboard/users", icon: UsersIcon, adminOnly: true },
   { label: "Roles", href: "/dashboard/roles", icon: RoleIcon, adminOnly: true },
   { label: "Access", href: "/dashboard/access", icon: AccessIcon, adminOnly: true },
-  { label: "Account", href: "/dashboard/accounts", icon: AccountIcon, roleNames: ["account"] },
-  { label: "Currency", href: "/dashboard/currency", icon: CurrencyIcon, roleNames: ["currency"] },
-  { label: "DMC Account", href: "/dashboard/dmc-accounts", icon: DmcIcon, roleNames: ["dmc account"] },
+  { label: "Account", href: "/dashboard/accounts", icon: AccountIcon, roleNames: ["account"], menuKey: "accounts" },
+  { label: "Currency", href: "/dashboard/currency", icon: CurrencyIcon, roleNames: ["currency"], menuKey: "currency" },
+  { label: "DMC Account", href: "/dashboard/dmc-accounts", icon: DmcIcon, roleNames: ["dmc account"], menuKey: "dmc-accounts" },
+  { label: "Hotel Voucher", href: "/dashboard/hotel-vouchers", icon: VoucherIcon, roleNames: ["hotel voucher"], menuKey: "hotel-vouchers" },
 ];
 
 export default function Sidebar() {
@@ -175,7 +186,9 @@ export default function Sidebar() {
   const visible = items.filter((i) => {
     if (isAdmin) return true;
     if (i.adminOnly) return false;
+    if (i.menuKey && canUseMenu(user, i.menuKey)) return true;
     if (i.roleNames) return i.roleNames.some((rn) => userRoleNames.includes(rn));
+    if (i.menuKey) return false;
     return true;
   });
 

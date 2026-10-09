@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api, AccessGrant, User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Toast, { ToastState } from "@/components/Toast";
+import { ADMIN_ONLY_MENUS, EVERYONE_MENUS, GRANTABLE_MENUS } from "@/lib/menus";
 import dash from "../dashboard.module.css";
 import styles from "./access.module.css";
 
@@ -26,6 +27,11 @@ export default function AccessPage() {
   const [grants, setGrants] = useState<AccessGrant[] | null>(null);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Menu access for the selected person — the saved list and the edits.
+  const [savedMenus, setSavedMenus] = useState<string[]>([]);
+  const [menus, setMenus] = useState<string[]>([]);
+  const [menusLoading, setMenusLoading] = useState(false);
+  const [menusBusy, setMenusBusy] = useState(false);
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -66,7 +72,55 @@ export default function AccessPage() {
       .then((info) => setGrants(info.grants))
       .catch((e) => notify("err", e instanceof Error ? e.message : "Failed to load access"))
       .finally(() => setGrantsLoading(false));
+    setMenusLoading(true);
+    api
+      .getMenuAccess(selectedId)
+      .then((r) => {
+        setSavedMenus(r.menus);
+        setMenus(r.menus);
+      })
+      .catch((e) => notify("err", e instanceof Error ? e.message : "Failed to load menu access"))
+      .finally(() => setMenusLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  // Menus the person already reaches through an assigned role — shown as
+  // ticked and locked here (remove the role on the Users page instead).
+  const viaRole = useMemo(() => {
+    const names = (users.find((u) => u.id === selectedId)?.roleNames || []).map((n) => n.trim().toLowerCase());
+    return new Set(GRANTABLE_MENUS.filter((m) => names.includes(m.roleName)).map((m) => m.key));
+  }, [users, selectedId]);
+
+  const menusDirty = menus.length !== savedMenus.length || menus.some((m) => !savedMenus.includes(m));
+
+  // Back to the empty "Select user" state. Unsaved menu ticks are lost, so ask first.
+  function closePanel() {
+    if (menusDirty && !window.confirm("You have unsaved menu changes. Close without saving?")) return;
+    setSelectedId("");
+    setSavedMenus([]);
+    setMenus([]);
+  }
+
+  function toggleMenu(key: string) {
+    setMenus((list) => (list.includes(key) ? list.filter((k) => k !== key) : [...list, key]));
+  }
+
+  async function onSaveMenus() {
+    if (!selectedId) return;
+    setMenusBusy(true);
+    try {
+      const r = await api.setMenuAccess(selectedId, menus);
+      setSavedMenus(r.menus);
+      setMenus(r.menus);
+      // Newly granted menus get their own View/Create/Edit/Delete card below.
+      setGrants((await api.getAccess(selectedId)).grants);
+      notify("ok", "Menu access updated — it applies the next time they open or refresh a page");
+    } catch (e) {
+      notify("err", e instanceof Error ? e.message : "Failed to save menu access");
+    } finally {
+      setMenusBusy(false);
+    }
+  }
 
   const selectedUser = useMemo(
     () => users.find((u) => u.id === selectedId) || null,
@@ -104,8 +158,8 @@ export default function AccessPage() {
           <div className={styles.head}>
             <h3>Access control</h3>
             <p className={styles.hint}>
-              Pick a person to see every custom role already assigned to them, then choose
-              exactly which actions each role can perform.
+              Pick a person, choose which menus they can open, then choose exactly which actions
+              they can perform in each one.
             </p>
           </div>
 
@@ -127,12 +181,77 @@ export default function AccessPage() {
               </select>
             </div>
 
+            {selectedId && (
+              <div className={styles.menuSection}>
+                <div className={styles.panelHead}>
+                  <div className={styles.sectionTitle}>Menu access</div>
+                  <button type="button" className={styles.closeBtn} onClick={closePanel} aria-label="Close this person's access">
+                    <span aria-hidden>×</span> Close
+                  </button>
+                </div>
+                <p className={styles.hint}>
+                  Tick the menus {selectedUser?.name || "this person"} can open. A ticked menu works like
+                  holding the role of the same name, and gets its own View / Create / Edit / Delete card
+                  below.
+                </p>
+                {menusLoading ? (
+                  <div className={styles.empty}>Loading menus…</div>
+                ) : (
+                  <>
+                    <div className={styles.menuGrid}>
+                      {EVERYONE_MENUS.map((label) => (
+                        <label key={label} className={`${styles.menuItem} ${styles.menuItemLocked}`} title="Every user has this menu">
+                          <input type="checkbox" checked disabled />
+                          <span>{label}</span>
+                          <em>Everyone</em>
+                        </label>
+                      ))}
+                      {GRANTABLE_MENUS.map((m) => {
+                        const locked = viaRole.has(m.key);
+                        return (
+                          <label
+                            key={m.key}
+                            className={`${styles.menuItem} ${locked ? styles.menuItemLocked : ""} ${
+                              menus.includes(m.key) || locked ? styles.menuItemOn : ""
+                            }`}
+                            title={locked ? "Already given through an assigned role (Users page)" : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={locked || menus.includes(m.key)}
+                              disabled={locked}
+                              onChange={() => toggleMenu(m.key)}
+                            />
+                            <span>{m.label}</span>
+                            {locked && <em>Via role</em>}
+                          </label>
+                        );
+                      })}
+                      {ADMIN_ONLY_MENUS.map((label) => (
+                        <label key={label} className={`${styles.menuItem} ${styles.menuItemLocked}`} title="Only admins can manage this">
+                          <input type="checkbox" checked={false} disabled />
+                          <span>{label}</span>
+                          <em>Admin only</em>
+                        </label>
+                      ))}
+                    </div>
+                    <div className={styles.actions}>
+                      <button className={styles.submit} onClick={onSaveMenus} disabled={menusBusy || !menusDirty}>
+                        {menusBusy ? "Saving…" : "Save menu access"}
+                      </button>
+                    </div>
+                  </>
+                )}
+                <div className={styles.sectionTitle}>Permissions</div>
+              </div>
+            )}
+
             {!selectedId ? null : grantsLoading ? (
               <div className={styles.empty}>Loading access…</div>
             ) : !grants || grants.length === 0 ? (
               <div className={styles.empty}>
-                {selectedUser?.name || "This person"} has no custom role assigned yet. Assign one
-                on the Users page first.
+                {selectedUser?.name || "This person"} has no menus or roles that need permissions yet —
+                tick a menu above, or assign a role on the Users page.
               </div>
             ) : (
               <>

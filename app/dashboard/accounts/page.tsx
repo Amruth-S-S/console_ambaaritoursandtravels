@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { canUseMenu } from "@/lib/menus";
 import { api, AccountEntry } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
@@ -167,7 +168,7 @@ export default function AccountsPage() {
   const isAccountRole = (user?.roleNames || []).some(
     (rn) => rn.trim().toLowerCase() === "account"
   );
-  const allowed = isAdmin || isAccountRole;
+  const allowed = isAdmin || isAccountRole || canUseMenu(user, "accounts");
 
   const [entries, setEntries] = useState<AccountEntry[]>([]);
   const [clientNames, setClientNames] = useState<string[]>([]);

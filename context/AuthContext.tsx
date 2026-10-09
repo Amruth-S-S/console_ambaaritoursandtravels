@@ -22,6 +22,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
     setLoading(false);
+    // Then refresh it in the background — picks up roles/menus an admin
+    // granted since login. A failure just keeps the stored copy.
+    if (stored && localStorage.getItem("token")) {
+      api
+        .getMe()
+        .then((fresh) => {
+          localStorage.setItem("user", JSON.stringify(fresh));
+          setUser(fresh);
+        })
+        .catch(() => {});
+    }
   }, []);
 
   async function login(email: string, password: string) {

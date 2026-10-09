@@ -32,6 +32,9 @@ export type User = {
   // Resolved server-side from roleIds at login/list time — e.g. ["Account"],
   // used to gate menus/pages without a separate roles fetch.
   roleNames: string[];
+  // Menus granted directly on the Access page (lib/menus.ts keys) — each
+  // unlocks that menu like holding the role of the same name.
+  menuAccess?: string[];
 };
 
 // Admin-managed role names — a separate list from the hardcoded
@@ -209,6 +212,43 @@ export type MyOfferProgress = {
   percent: number;
   met: boolean;
 };
+
+// Hotel voucher — service voucher for the ground handler / hotels. Dates
+// yyyy-mm-dd; arrival/departure yyyy-mm-ddTHH:MM.
+export type VoucherGuest = { name: string; passportNo: string };
+export type VoucherHotel = {
+  hotelName: string;
+  address: string;
+  refNo: string;
+  roomType: string;
+  checkIn: string;
+  checkOut: string;
+  rooms: string;
+  nights: string;
+  city: string;
+};
+export type HotelVoucherInput = {
+  voucherNo: string;
+  date: string;
+  agent: string;
+  country: string;
+  nationality: string;
+  adults: string;
+  children: string;
+  contactPerson: string;
+  meetingPoint: string;
+  boardName: string;
+  arrival: string;
+  arrivalFlight: string;
+  departure: string;
+  departureFlight: string;
+  specialRequirements: string;
+  guests: VoucherGuest[];
+  hotels: VoucherHotel[];
+  holidayPackage: string; // one item per line
+  transferDetail: string; // one item per line
+};
+export type HotelVoucher = HotelVoucherInput & { id: string; createdAt: string; createdBy: string };
 
 // Per-user, per-role granular CRUD permissions — a finer dial than just
 // having the Account/Currency role at all. Only roles that gate a real
@@ -684,6 +724,14 @@ export const api = {
     request<Offer>(`/offers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteOffer: (id: string) => request<void>(`/offers/${id}`, { method: "DELETE" }),
 
+  listHotelVouchers: () => request<HotelVoucher[]>("/hotel-vouchers"),
+  getNextVoucherNo: () => request<{ voucherNo: string }>("/hotel-vouchers/next-voucher-no"),
+  createHotelVoucher: (body: HotelVoucherInput) =>
+    request<HotelVoucher>("/hotel-vouchers", { method: "POST", body: JSON.stringify(body) }),
+  updateHotelVoucher: (id: string, body: HotelVoucherInput) =>
+    request<HotelVoucher>(`/hotel-vouchers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteHotelVoucher: (id: string) => request<void>(`/hotel-vouchers/${id}`, { method: "DELETE" }),
+
   listDmcAccounts: () => request<DmcAccount[]>("/dmc-accounts"),
   getNextDmcSlNo: () => request<{ slNo: string }>("/dmc-accounts/next-sl-no"),
   createDmcAccount: (body: DmcAccountInput) =>
@@ -709,6 +757,15 @@ export const api = {
   // Self-service — any logged-in account can read its own grants, used to
   // hide buttons for actions that would just 403 anyway.
   getMyAccess: () => request<AccessInfo>("/access/me"),
+  // Fresh copy of the logged-in user (roles + granted menus) — read on every
+  // page load so admin changes apply without logging out and back in.
+  getMe: () => request<User>("/auth/me"),
+  getMenuAccess: (userId: string) => request<{ userId: string; menus: string[] }>(`/access/${userId}/menus`),
+  setMenuAccess: (userId: string, menus: string[]) =>
+    request<{ userId: string; menus: string[] }>(`/access/${userId}/menus`, {
+      method: "PUT",
+      body: JSON.stringify({ menus }),
+    }),
   getAccess: (userId: string) => request<AccessInfo>(`/access/${userId}`),
   setAccess: (userId: string, grants: AccessGrant[]) =>
     request<AccessInfo>(`/access/${userId}`, {

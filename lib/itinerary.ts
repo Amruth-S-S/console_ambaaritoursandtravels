@@ -406,7 +406,12 @@ export async function downloadItineraryPdf(
   }
 
   let renderUnits: HTMLElement[] = [];
+  // A top-level block marked data-page-break="before" (e.g. a voucher's
+  // Terms & Conditions) starts on a fresh page — its first render unit is
+  // remembered here. Opt-in, so existing documents paginate as before.
+  const breakBefore = new Set<number>();
   topBlocks.forEach((block) => {
+    if (block.dataset.pageBreak === "before") breakBefore.add(renderUnits.length);
     renderUnits = renderUnits.concat(planRenderUnits(block, 0));
   });
 
@@ -431,7 +436,8 @@ export async function downloadItineraryPdf(
   }
   newPage();
 
-  for (const canvas of unitCanvases) {
+  for (const [unitIndex, canvas] of unitCanvases.entries()) {
+    if (breakBefore.has(unitIndex) && cursorY > marginTop) newPage();
     const scale = usableWidth / canvas.width;
     const unitHeightMM = canvas.height * scale;
     const remaining = pdfHeight - marginTop - cursorY;

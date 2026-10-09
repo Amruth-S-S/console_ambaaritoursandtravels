@@ -735,3 +735,20 @@
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+
+/* Hotel Voucher form — one bordered block per hotel */
+.voucherHotel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px 14px;
+  margin-top: 12px;
+  background: var(--surface-2);
+}
+
+.voucherHotelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink-dim);
+}

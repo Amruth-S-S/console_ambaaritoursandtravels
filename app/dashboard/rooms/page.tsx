@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { canUseMenu } from "@/lib/menus";
 import { api, Package, RoomEntry, RoomTraveler } from "@/lib/api";
 import {
   downloadCombinedRoomListPdf,
@@ -162,7 +163,7 @@ export default function RoomsPage() {
   const isRoomListRole = (user?.roleNames || []).some(
     (rn) => rn.trim().toLowerCase() === "room list"
   );
-  const allowed = isAdmin || isRoomListRole;
+  const allowed = isAdmin || isRoomListRole || canUseMenu(user, "rooms");
 
   const [entries, setEntries] = useState<RoomEntry[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);

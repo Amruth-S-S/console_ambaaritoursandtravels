@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { canUseMenu } from "@/lib/menus";
 import { api, Offer, OfferInput } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
@@ -56,7 +57,8 @@ function formatAmount(v: string): string {
 export default function OffersPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === "admin";
+  // Admin, or a user granted this menu on the Access page.
+  const allowed = canUseMenu(user, "offers");
 
   const [offers, setOffers] = useState<Offer[]>([]);
   // Titles of every saved package — the Package Name dropdown's options.
@@ -76,8 +78,8 @@ export default function OffersPage() {
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (user && !isAdmin) router.replace("/dashboard");
-  }, [user, isAdmin, router]);
+    if (user && !allowed) router.replace("/dashboard");
+  }, [user, allowed, router]);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -104,9 +106,9 @@ export default function OffersPage() {
   }
 
   useEffect(() => {
-    if (isAdmin) load();
+    if (allowed) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [allowed]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -192,7 +194,7 @@ export default function OffersPage() {
     });
   }
 
-  if (user && !isAdmin) return null;
+  if (user && !allowed) return null;
 
   return (
     <>

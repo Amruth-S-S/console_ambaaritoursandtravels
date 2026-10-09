@@ -11,7 +11,17 @@ import styles from "./PassportScan.module.css";
 // fields. The uploaded pages stay visible underneath as thumbnails (click to
 // enlarge) so the filled fields can be re-checked against the passport.
 // Nothing is uploaded or stored — the preview lasts while the form is open.
-export default function PassportScan({ onScanned }: { onScanned: (d: PassportDetails) => void }) {
+const DEFAULT_FIELDS: (keyof PassportDetails)[] = ["givenName", "surname", "sex", "dob", "passportNo"];
+
+export default function PassportScan({
+  onScanned,
+  fields = DEFAULT_FIELDS,
+}: {
+  onScanned: (d: PassportDetails) => void;
+  // The passport fields this form actually fills — only used for the
+  // "Filled N fields" message.
+  fields?: (keyof PassportDetails)[];
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
@@ -49,8 +59,7 @@ export default function PassportScan({ onScanned }: { onScanned: (d: PassportDet
       }
       setPreviews(pages.map((b) => URL.createObjectURL(b)));
       const merged = mergePassports(results);
-      // Only these are filled into the forms (Room List, Currency).
-      const filled = (["givenName", "surname", "sex", "dob", "passportNo"] as const).filter((k) => merged[k]).length;
+      const filled = fields.filter((k) => merged[k]).length;
       if (filled === 0) {
         setMsg({ ok: false, text: "Couldn't read any details — try a clearer, straight-on photo of the page." });
         return;

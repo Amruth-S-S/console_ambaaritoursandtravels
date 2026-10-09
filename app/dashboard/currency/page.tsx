@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { canUseMenu } from "@/lib/menus";
 import { api, CurrencyEntry, CurrencyEntryInput } from "@/lib/api";
 import { formatDateDMY } from "@/lib/dates";
 import Navbar from "@/components/Navbar";
@@ -111,7 +112,7 @@ export default function CurrencyLedgerPage() {
   const isCurrencyRole = (user?.roleNames || []).some(
     (rn) => rn.trim().toLowerCase() === "currency"
   );
-  const allowed = isAdmin || isCurrencyRole;
+  const allowed = isAdmin || isCurrencyRole || canUseMenu(user, "currency");
 
   const [entries, setEntries] = useState<CurrencyEntry[]>([]);
   const [clientOptions, setClientOptions] = useState<{ clientName: string; clientPhone: string }[]>([]);
